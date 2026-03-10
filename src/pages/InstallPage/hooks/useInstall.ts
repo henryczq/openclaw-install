@@ -210,12 +210,27 @@ export function useInstall(isDebugMode: boolean = false) {
       addLog('配置Git代理...');
       await window.electronAPI.configGitProxy();
       
+      // 检查Git是否安装成功
       const checkResult = await window.electronAPI.checkGit();
-      setSystemStatus({ git: checkResult });
       
-      updateStepStatus('install-git', 'success', `已安装 v${checkResult.version}`);
-      addLog(`Git安装成功: v${checkResult.version}`);
-      return true;
+      if (checkResult.installed) {
+        setSystemStatus({ git: checkResult });
+        updateStepStatus('install-git', 'success', `已安装 v${checkResult.version}`);
+        addLog(`Git安装成功: v${checkResult.version}`);
+        
+        // Git安装成功后重启应用以更新环境变量
+        addLog('Git安装成功，正在重启应用以更新环境变量...');
+        await window.electronAPI.restartApp();
+        return true;
+      } else {
+        // 如果Git未检测到，提示重启
+        addLog('Git安装可能需要重启系统才能生效');
+        setSystemStatus({ git: { installed: false, needUpdate: true } });
+        updateStepStatus('install-git', 'error', '安装成功，但需要重启系统');
+        addLog('Git安装成功，但需要重启系统才能生效');
+        addLog('提示：请重启系统后重新运行安装程序');
+        return false;
+      }
     } catch (error) {
       updateStepStatus('install-git', 'error', `安装失败: ${error}`);
       addLog(`Git安装失败: ${error}`);

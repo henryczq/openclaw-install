@@ -84,6 +84,14 @@ app.whenReady().then(async () => {
   registerInstallHandlers(ipcMain);
   registerUtilsHandlers(ipcMain);
 
+  // 重启应用
+  ipcMain.handle('restart-app', () => {
+    console.log('Restarting app...');
+    app.relaunch();
+    app.quit();
+    return { success: true };
+  });
+
   createWindow();
 });
 

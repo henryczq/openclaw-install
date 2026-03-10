@@ -128,6 +128,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   configQqChannel: (appId, appSecret) => ipcRenderer.invoke('config-qq-channel', appId, appSecret),
   restartOpenClaw: () => ipcRenderer.invoke('restart-openclaw'),
   uninstallOpenClaw: () => ipcRenderer.invoke('uninstall-openclaw'),
+  restartApp: () => ipcRenderer.invoke('restart-app'),
   getDebugStatus: () => ipcRenderer.invoke('get-debug-status'),
   setDebugStatus: (enabled) => ipcRenderer.invoke('set-debug-status', enabled),
   toggleDebug: () => ipcRenderer.invoke('toggle-debug'),

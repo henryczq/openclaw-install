@@ -126,6 +126,7 @@ export interface ElectronAPI {
   configQqChannel: (appId: string, appSecret: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   restartOpenClaw: () => Promise<{ success: boolean; output?: string; error?: string }>;
   uninstallOpenClaw: () => Promise<CommandResult>;
+  restartApp: () => Promise<{ success: boolean }>;
   getDebugStatus: () => Promise<{ enabled: boolean }>;
   setDebugStatus: (enabled: boolean) => Promise<{ success: boolean; enabled?: boolean; configPath?: string; error?: string }>;
   toggleDebug: () => Promise<{ success: boolean; enabled?: boolean; configPath?: string; error?: string }>;
