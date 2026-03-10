@@ -1,0 +1,78 @@
+import { Card, Typography, Space, Tag, Divider, Button } from 'antd';
+import { GithubOutlined } from '@ant-design/icons';
+
+const { Title, Text, Paragraph } = Typography;
+
+export default function AboutPage() {
+  const appVersion = '1.0.0';
+
+  return (
+    <div style={{ padding: '24px' }}>
+      <Title level={2}>关于</Title>
+      
+      <Card style={{ marginTop: 24 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          {/* 应用信息 */}
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <Title level={3} style={{ marginBottom: 8 }}>
+              OpenClaw 安装助手
+            </Title>
+            <Tag color="blue">v{appVersion}</Tag>
+            <Paragraph style={{ marginTop: 16, color: '#666' }}>
+              一款面向 Windows 平台的桌面客户端软件，<br />
+              帮助用户零门槛、一键式完成 OpenClaw 的部署和配置。
+            </Paragraph>
+          </div>
+
+          <Divider />
+
+          {/* 功能特性 */}
+          <div>
+            <Text strong>功能特性：</Text>
+            <ul style={{ marginTop: 8, color: '#666' }}>
+              <li>自动检测并安装 Node.js、Git 等依赖环境</li>
+              <li>一键安装 OpenClaw 主程序</li>
+              <li>AI 模型配置（支持火山引擎）</li>
+              <li>飞书渠道配置向导</li>
+              <li>可视化安装日志</li>
+              <li>完整的卸载功能</li>
+            </ul>
+          </div>
+
+          <Divider />
+
+          {/* 相关链接 */}
+          <div>
+            <Text strong>相关链接：</Text>
+            <Space style={{ marginTop: 8 }}>
+              <Button 
+                type="default" 
+                icon={<GithubOutlined />}
+                onClick={() => window.electronAPI?.openExternal('https://github.com/henryczq/openclaw-install')}
+              >
+                GitHub
+              </Button>
+            </Space>
+          </div>
+
+          <Divider />
+
+          {/* 版权信息 */}
+          <div style={{ textAlign: 'center', color: '#999', fontSize: 12 }}>
+            <Text type="secondary">
+              作者：振振公子
+            </Text>
+            <br />
+            <Text type="secondary">
+              2026 OpenClaw Installer. All rights reserved.
+            </Text>
+            <br />
+            <Text type="secondary">
+              本软件仅供学习和研究使用
+            </Text>
+          </div>
+        </Space>
+      </Card>
+    </div>
+  );
+}

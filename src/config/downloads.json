@@ -1,0 +1,64 @@
+{
+  "name": "OpenClaw安装助手 - 下载配置",
+  "version": "1.0.0",
+  "lastUpdated": "2026-03-09",
+  "downloads": {
+    "nodejs": {
+      "name": "Node.js",
+      "description": "JavaScript运行时环境",
+      "version": "24.14.0",
+      "autoDownload": {
+        "url": "https://cdn.npmmirror.com/binaries/node/v24.14.0/node-v24.14.0-x64.msi",
+        "mirror": "淘宝npm镜像",
+        "filename": "node-v24.14.0-x64.msi"
+      },
+      "manualDownload": {
+        "url": "https://cdn.npmmirror.com/binaries/node/v24.14.0/node-v24.14.0-x64.msi",
+        "description": "手动下载Node.js安装包"
+      },
+      "minVersion": "22.0.0"
+    },
+    "git": {
+      "name": "Git",
+      "description": "分布式版本控制系统",
+      "version": "2.53.0",
+      "autoDownload": {
+        "url": "https://mirror.nju.edu.cn/github-release/git-for-windows/git/Git%20for%20Windows%20v2.53.0.windows.1/Git-2.53.0-64-bit.exe",
+        "mirror": "南京大学镜像",
+        "filename": "Git-2.53.0-64-bit.exe"
+      },
+      "manualDownload": {
+        "url": "https://git-scm.com/download/win",
+        "description": "访问Git官网下载页面"
+      },
+      "minVersion": "2.40.0"
+    },
+    "openclaw": {
+      "name": "OpenClaw",
+      "description": "个人AI助手",
+      "version": "latest",
+      "autoDownload": {
+        "url": null,
+        "mirror": null,
+        "filename": null,
+        "note": "通过npm全局安装"
+      },
+      "manualDownload": {
+        "url": "https://www.npmjs.com/package/openclaw",
+        "description": "访问OpenClaw npm页面查看安装说明"
+      },
+      "installCommand": "npm install -g openclaw@latest",
+      "minVersion": "2026.3.0"
+    }
+  },
+  "mirrors": {
+    "nodejs": {
+      "primary": "https://cdn.npmmirror.com/binaries/node",
+      "backup": "https://nodejs.org/dist"
+    },
+    "git": {
+      "primary": "https://mirror.nju.edu.cn/github-release/git-for-windows/git",
+      "backup": "https://github.com/git-for-windows/git/releases"
+    }
+  }
+}
