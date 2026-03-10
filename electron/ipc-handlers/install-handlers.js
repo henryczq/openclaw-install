@@ -98,6 +98,9 @@ export function registerInstallHandlers(ipcMain) {
       if (errorMsg.includes('npm error code 128')) {
         return { success: false, error: 'npm 安装失败，可能是网络连接问题或权限不足，请尝试以管理员身份运行应用' };
       }
+      if (errorMsg.includes('npm error code 1')) {
+        return { success: false, error: 'npm 安装失败，可能是权限不足或依赖冲突，请尝试以管理员身份运行应用或清理 npm 缓存后重试' };
+      }
       // 清理错误信息，移除乱码
       errorMsg = errorMsg.replace(/[\u0000-\u001F\u007F-\u00FF]/g, '');
       return { success: false, error: errorMsg };

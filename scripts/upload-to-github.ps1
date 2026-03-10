@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 $RemoteName = 'origin'
 $RemoteUrl = 'https://github.com/henryczq/openclaw-install.git'
+$PublishBranch = 'master'
 $ProjectDir = Split-Path -Parent $PSScriptRoot
 
 function Write-Section($text, $color = 'Cyan') {
@@ -109,8 +110,14 @@ try {
         Write-Host '项目目录下没有新的可提交改动，跳过提交。' -ForegroundColor Yellow
     }
 
-    Write-Host "推送代码到 GitHub（$CurrentBranch）..." -ForegroundColor Yellow
-    git -C $RepoRoot push -u $RemoteName $CurrentBranch
+    Write-Host "生成以 $ProjectPath 为根的发布历史..." -ForegroundColor Yellow
+    $PublishCommit = (git -C $RepoRoot subtree split --prefix=$ProjectPath $CurrentBranch).Trim()
+    if ([string]::IsNullOrWhiteSpace($PublishCommit)) {
+        throw '未能生成发布分支提交。'
+    }
+
+    Write-Host "推送代码到 GitHub（$PublishBranch，仓库根=$ProjectPath）..." -ForegroundColor Yellow
+    git -C $RepoRoot push $RemoteName "${PublishCommit}:${PublishBranch}" --force
 
     Write-Host ''
     Write-Host '代码推送成功!' -ForegroundColor Green
