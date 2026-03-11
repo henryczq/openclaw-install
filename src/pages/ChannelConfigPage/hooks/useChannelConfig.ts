@@ -13,6 +13,7 @@ export function useChannelConfig() {
   const [isChecking, setIsChecking] = useState(true);
   const [rpaProgress, setRpaProgress] = useState<{step: string, status: 'pending'|'running'|'success'|'error', message?: string}[]>([]);
   const currentRpaActionRef = useRef<string | null>(null);
+  const [openclawInstalled, setOpenclawInstalled] = useState<boolean | null>(null);
 
   const notifySuccess = (text: string) => {
     if (messageApi && typeof messageApi.success === 'function') {
@@ -173,7 +174,20 @@ export function useChannelConfig() {
 
   useEffect(() => {
     const checkStatus = async () => {
-      setIsChecking(false);
+      setIsChecking(true);
+      try {
+        const result = await window.electronAPI.checkOpenClaw();
+        setOpenclawInstalled(result.installed);
+        if (!result.installed) {
+          notifyError('OpenClaw 未安装，请先安装 OpenClaw');
+        }
+      } catch (error) {
+        console.error('检查 OpenClaw 失败:', error);
+        setOpenclawInstalled(false);
+        notifyError('检查 OpenClaw 失败');
+      } finally {
+        setIsChecking(false);
+      }
     };
     checkStatus();
   }, []);
@@ -366,5 +380,6 @@ export function useChannelConfig() {
     installFeishuPlugin,
     saveFeishuConfig,
     handleRpaAction,
+    openclawInstalled,
   };
 }

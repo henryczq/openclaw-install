@@ -1,6 +1,8 @@
-import { Card, Button, Space, Steps, Row, Col, Alert } from 'antd';
+import { Card, Button, Space, Steps, Row, Col, Alert, Spin, Typography } from 'antd';
 import { RobotOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useQqConfig } from '../hooks/useQqConfig';
+
+const { Text } = Typography;
 
 const stepItems = [
   { title: '检查插件', description: '检查QQ插件是否已安装' },
@@ -43,7 +45,31 @@ export function QqConfig() {
     setQqConfig,
     handleQqAction,
     runAllSteps,
+    openclawInstalled,
+    isCheckingOpenclaw,
   } = useQqConfig();
+
+  if (isCheckingOpenclaw) {
+    return (
+      <div style={{ padding: '24px', textAlign: 'center', marginTop: 100 }}>
+        <Spin size="large" />
+        <div style={{ marginTop: 16 }}>正在检查 OpenClaw 安装状态...</div>
+      </div>
+    );
+  }
+
+  if (openclawInstalled === false) {
+    return (
+      <div style={{ padding: '24px' }}>
+        <Alert
+          message="OpenClaw 未安装"
+          description="请先在一键安装页面安装 OpenClaw，然后再配置 QQ 渠道。"
+          type="error"
+          showIcon
+        />
+      </div>
+    );
+  }
 
   return (
     <Row gutter={24}>
@@ -117,13 +143,19 @@ export function QqConfig() {
             <Space direction="vertical" style={{ width: '100%' }}>
               <Alert 
                 message="登录QQ机器人管理页面" 
-                description="打开 https://q.qq.com/qqbot/openclaw/index.html 进行扫码登录" 
+                description="打开 https://q.qq.com/qqbot/openclaw/index.html 进行扫码登录，系统将在后台自动检测登录状态（每5秒检查一次，最多2分钟），检测到登录后会自动继续" 
                 type="info" 
                 showIcon 
               />
               <Button type="primary" icon={<RobotOutlined />} onClick={() => handleQqAction('open-console')} loading={isProcessing}>
                 打开管理页面
               </Button>
+              <Button type="default" icon={<RobotOutlined />} onClick={() => handleQqAction('check-login')} loading={isProcessing} disabled={isProcessing}>
+                已登录，手动继续
+              </Button>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                如果自动检测未触发，可点击"已登录，手动继续"
+              </Text>
               {renderRpaProgress(rpaProgress)}
             </Space>
           )}

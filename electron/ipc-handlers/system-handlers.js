@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { checkOpenClawInstalled } from '../utils/openclaw-gateway-service.js';
 
 const execAsync = promisify(exec);
 
@@ -78,14 +79,8 @@ export function registerSystemHandlers(ipcMain) {
   });
 
   // 检查OpenClaw
-  ipcMain.handle('check-openclaw', async () => {
-    try {
-      await execAsync('chcp 65001', { shell: 'cmd.exe' }).catch(() => {});
-      const { stdout } = await execAsync('openclaw --version');
-      return { installed: true, version: stdout.trim() };
-    } catch (error) {
-      return { installed: false };
-    }
+  ipcMain.handle('check-openclaw', async (event, strictMode = false) => {
+    return await checkOpenClawInstalled(strictMode);
   });
 
   // 设置npm国内源

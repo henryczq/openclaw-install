@@ -135,6 +135,7 @@ export interface CommandResult {
   diagnosis?: string[];
   message?: string;
   detached?: boolean;
+  needVerify?: boolean;
 }
 
 // ============================================
@@ -198,7 +199,7 @@ export interface ElectronAPI {
   checkNode: () => Promise<NodeCheckResult>;
   checkNpm: () => Promise<NpmCheckResult>;
   checkGit: () => Promise<GitCheckResult>;
-  checkOpenClaw: () => Promise<OpenClawCheckResult>;
+  checkOpenClaw: (strictMode?: boolean) => Promise<OpenClawCheckResult>;
   checkVCRedist: () => Promise<VCRedistCheckResult>;
 
   // 配置
@@ -222,9 +223,7 @@ export interface ElectronAPI {
 
   // OpenClaw 操作
   installOpenClaw: (options?: { enableGitProxy?: boolean }) => Promise<CommandResult>;
-  openclawOnboard: () => Promise<{ success: boolean; output?: string; error?: string }>;
   saveOpenClawConfig: (config: object) => Promise<{ success: boolean; path?: string; error?: string }>;
-  startOpenClawGateway: () => Promise<{ success: boolean; message?: string; error?: string }>;
   checkPort: (port: number) => Promise<{ open: boolean; port: number; error?: string }>;
   configOpenClawAI: (config: AIProviderConfig | string, apiKey?: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   initOpenClawConfig: () => Promise<{ success: boolean; configPath?: string; error?: string }>;
@@ -262,6 +261,10 @@ export interface ElectronAPI {
   qqGetCredentials: () => Promise<{ success: boolean; data?: { appId: string; appSecret: string }; error?: string }>;
   configQqChannel: (appId: string, appSecret: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   restartOpenClaw: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  startOpenClawGateway: () => Promise<{ success: boolean; message?: string; output?: string; error?: string }>;
+  stopOpenClawGateway: () => Promise<{ success: boolean; message?: string; output?: string; error?: string }>;
+  restartOpenClawGateway: () => Promise<{ success: boolean; message?: string; output?: string; error?: string }>;
+  checkGatewayStatus: (port?: number) => Promise<{ running: boolean; port: number; error?: string }>;
   uninstallOpenClaw: () => Promise<CommandResult>;
   detectOpenClawResidue: () => Promise<{ success: boolean; items: OpenClawResidueItem[]; error?: string }>;
   cleanupOpenClawResidue: () => Promise<{

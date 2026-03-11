@@ -101,6 +101,17 @@ export function ModelManager() {
   // 删除 Provider
   const handleDeleteProvider = async (providerId: string) => {
     try {
+      // 检查是否是最后一个 Provider
+      if (providers.length <= 1) {
+        notification.warning({
+          message: '无法删除',
+          description: '这是最后一个 Provider，不能删除。请先添加一个新的 Provider 后再删除此 Provider。',
+          placement: 'topRight',
+          duration: 4,
+        });
+        return;
+      }
+
       if (window.electronAPI?.deleteProvider) {
         const result = await window.electronAPI.deleteProvider(providerId);
         if (result.success) {

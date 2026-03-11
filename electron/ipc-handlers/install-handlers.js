@@ -4,6 +4,15 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import {
+  startOpenClawGateway,
+  stopOpenClawGateway,
+  restartOpenClawGateway,
+  checkGatewayStatus
+} from '../utils/openclaw-gateway-service.js';
+import {
+  uninstallOpenClaw as uninstallOpenClawCommand
+} from '../utils/openclaw-commands.js';
 
 const execAsync = promisify(exec);
 const OPENCLAW_REPO_URL = 'https://github.com/openclaw/openclaw.git';
@@ -245,8 +254,11 @@ export function registerInstallHandlers(ipcMain) {
       lines.push('    Write-Host "  3. Use VPN or proxy" -ForegroundColor White');
       lines.push('}');
       lines.push('Write-Host ""');
-      lines.push('Write-Host "Press any key to close..." -ForegroundColor Gray');
-      lines.push('[void][System.Console]::ReadKey($true)');
+      lines.push('Write-Host ""');
+      lines.push('Write-Host "========================================" -ForegroundColor Cyan');
+      lines.push('Write-Host "  安装完成！按回车键关闭此窗口..." -ForegroundColor Cyan');
+      lines.push('Write-Host "========================================" -ForegroundColor Cyan');
+      lines.push('[void][System.Console]::ReadLine()');
       
       const scriptContent = lines.join('\r\n');
 
@@ -266,25 +278,34 @@ export function registerInstallHandlers(ipcMain) {
         };
       }
       
-      // 使用spawn打开独立PowerShell窗口
+      // 使用spawn打开独立PowerShell窗口，并等待其关闭
       return new Promise((resolve) => {
-        // 使用 cmd /c start 来确保窗口显示
-        const child = spawn('cmd.exe', [
-          '/c',
-          'start',
-          'powershell.exe',
-          '-NoExit',
+        // 直接启动 PowerShell，不使用 start 命令，这样可以等待进程结束
+        const child = spawn('powershell.exe', [
           '-ExecutionPolicy', 'Bypass',
           '-File', scriptPath
         ], {
-          detached: true,
+          detached: false,
           windowsHide: false,
           shell: false
         });
         
-        // cmd 会立即返回，因为使用了 start 命令
-        child.on('close', () => {
-          console.log('CMD启动器已关闭，PowerShell窗口应该已打开');
+        console.log('PowerShell安装窗口已打开，等待用户完成安装...');
+        
+        child.on('close', (code) => {
+          console.log('PowerShell窗口已关闭，退出码:', code);
+          // 清理临时文件
+          try {
+            fs.unlinkSync(scriptPath);
+          } catch {}
+          
+          // 窗口关闭后，检查OpenClaw是否安装成功
+          resolve({ 
+            success: true, 
+            message: 'PowerShell安装窗口已关闭',
+            detached: false,
+            needVerify: true
+          });
         });
         
         child.on('error', (error) => {
@@ -299,13 +320,6 @@ export function registerInstallHandlers(ipcMain) {
             reasonType: 'unknown'
           });
         });
-        
-        // 立即返回，让用户在窗口中查看进度
-        resolve({ 
-          success: true, 
-          message: '安装命令已在独立PowerShell窗口中启动，请在新窗口中查看安装进度',
-          detached: true
-        });
       });
     } catch (error) {
       console.error('OpenClaw 安装失败:', error);
@@ -317,34 +331,29 @@ export function registerInstallHandlers(ipcMain) {
     }
   });
 
-  // 运行openclaw onboard
-  ipcMain.handle('openclaw-onboard', async () => {
-    try {
-      const { stdout } = await execAsync('openclaw onboard', { timeout: 60000 });
-      return { success: true, output: stdout };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
   // 启动OpenClaw网关
   ipcMain.handle('start-openclaw-gateway', async () => {
-    try {
-      const { stdout } = await execAsync('openclaw gateway --port 18789', { timeout: 30000 });
-      return { success: true, output: stdout };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    return await startOpenClawGateway();
+  });
+
+  // 停止OpenClaw网关
+  ipcMain.handle('stop-openclaw-gateway', async () => {
+    return await stopOpenClawGateway();
+  });
+
+  // 重启OpenClaw网关
+  ipcMain.handle('restart-openclaw-gateway', async () => {
+    return await restartOpenClawGateway();
+  });
+
+  // 检查Gateway状态
+  ipcMain.handle('check-gateway-status', async (event, port = 18789) => {
+    return await checkGatewayStatus(port);
   });
 
   // 卸载OpenClaw
   ipcMain.handle('uninstall-openclaw', async () => {
-    try {
-      const { stdout } = await execAsync('npm uninstall -g openclaw', { timeout: 120000 });
-      return { success: true, output: stdout };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    return await uninstallOpenClawCommand();
   });
 
   ipcMain.handle('detect-openclaw-residue', async () => {
@@ -366,7 +375,7 @@ export function registerInstallHandlers(ipcMain) {
   ipcMain.handle('cleanup-openclaw-residue', async () => {
     try {
       try {
-        await execAsync('npm uninstall -g openclaw', { timeout: 120000 });
+        await uninstallOpenClawCommand();
       } catch (uninstallError) {
         console.log('清理残余前执行 npm uninstall 失败，继续清理残余:', uninstallError.message);
       }

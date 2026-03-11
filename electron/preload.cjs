@@ -48,7 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkNode: () => ipcRenderer.invoke('check-node'),
   checkNpm: () => ipcRenderer.invoke('check-npm'),
   checkGit: () => ipcRenderer.invoke('check-git'),
-  checkOpenClaw: () => ipcRenderer.invoke('check-openclaw'),
+  checkOpenClaw: (strictMode) => ipcRenderer.invoke('check-openclaw', strictMode),
   checkVCRedist: () => ipcRenderer.invoke('check-vcredist'),
 
   // 配置
@@ -76,7 +76,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // OpenClaw操作
   installOpenClaw: (options) => ipcRenderer.invoke('install-openclaw', options),
-  openclawOnboard: () => ipcRenderer.invoke('openclaw-onboard'),
   saveOpenClawConfig: (config) => ipcRenderer.invoke('save-openclaw-config', config),
   startOpenClawGateway: () => ipcRenderer.invoke('start-openclaw-gateway'),
   checkPort: (port) => ipcRenderer.invoke('check-port', port),
@@ -130,6 +129,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   qqGetCredentials: () => ipcRenderer.invoke('qq-get-credentials'),
   configQqChannel: (appId, appSecret) => ipcRenderer.invoke('config-qq-channel', appId, appSecret),
   restartOpenClaw: () => ipcRenderer.invoke('restart-openclaw'),
+  startOpenClawGateway: () => ipcRenderer.invoke('start-openclaw-gateway'),
+  stopOpenClawGateway: () => ipcRenderer.invoke('stop-openclaw-gateway'),
+  restartOpenClawGateway: () => ipcRenderer.invoke('restart-openclaw-gateway'),
+  checkGatewayStatus: (port) => ipcRenderer.invoke('check-gateway-status', port),
   uninstallOpenClaw: () => ipcRenderer.invoke('uninstall-openclaw'),
   detectOpenClawResidue: () => ipcRenderer.invoke('detect-openclaw-residue'),
   cleanupOpenClawResidue: () => ipcRenderer.invoke('cleanup-openclaw-residue'),

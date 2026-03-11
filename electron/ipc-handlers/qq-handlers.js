@@ -1,9 +1,18 @@
 import { exec, execSync } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs';
 import { BrowserWindow, shell } from 'electron';
 import { createAutomationWindowManager } from './ai/provider-window.js';
 import { getConfigPath } from './config-handlers.js';
 import { isDebugEnabled } from '../config/debug-config.js';
+import { checkOpenClawInstalled, restartOpenClawGateway } from '../utils/openclaw-gateway-service.js';
+import { 
+  listOpenClawPlugins, 
+  installOpenClawPlugin, 
+  addOpenClawChannel 
+} from '../utils/openclaw-commands.js';
+
+const execAsync = promisify(exec);
 
 let qqWindow = null;
 
@@ -26,16 +35,6 @@ const ensureQqWindow = () => {
 };
 
 export function registerQqHandlers(ipcMain) {
-  // 检查OpenClaw是否安装
-  const checkOpenClawInstalled = async () => {
-    try {
-      const { stdout } = await import('child_process').then(m => m.execSync('openclaw --version', { encoding: 'utf-8', windowsHide: true }));
-      return { installed: true, version: stdout.trim() };
-    } catch (error) {
-      return { installed: false, error: 'OpenClaw 未安装' };
-    }
-  };
-
   // 检查QQ插件
   ipcMain.handle('check-qq-plugin', async () => {
     try {
@@ -45,22 +44,22 @@ export function registerQqHandlers(ipcMain) {
         return { installed: false, error: 'OpenClaw 未安装，请先安装 OpenClaw' };
       }
 
-      // 使用 UTF-8 编码执行命令
-      const { execSync } = await import('child_process');
-      await import('child_process').then(m => m.execSync('chcp 65001', { shell: 'cmd.exe' })).catch(() => {});
-      const stdout = execSync('openclaw plugins list', { encoding: 'utf-8', windowsHide: true });
-      console.log('插件列表输出:', stdout);
+      // 使用公共方法获取插件列表
+      const result = await listOpenClawPlugins();
+      if (!result.success) {
+        return { installed: false, error: result.error };
+      }
+
+      console.log('插件列表:', result.plugins);
 
       // 检查是否包含QQ Bot相关的行
-      const lines = stdout.split('\n');
-      const hasQqBot = lines.some(line => {
-        const lowerLine = line.toLowerCase();
-        return (lowerLine.includes('qq bot') || lowerLine.includes('qqbot'))
-               && (lowerLine.includes('loaded') || lowerLine.includes('enabled'));
+      const hasQqBot = result.plugins.some(plugin => {
+        const lowerPlugin = plugin.toLowerCase();
+        return lowerPlugin.includes('qq') || lowerPlugin.includes('tencent');
       });
 
       console.log('QQ插件检测结果:', hasQqBot);
-      return { installed: hasQqBot, output: stdout };
+      return { installed: hasQqBot, output: result.plugins.join('\n') };
     } catch (error) {
       console.error('检查QQ插件失败:', error);
       // 处理错误信息，避免乱码
@@ -80,65 +79,25 @@ export function registerQqHandlers(ipcMain) {
 
   // 安装QQ插件
   ipcMain.handle('install-qq-plugin', async () => {
-    return new Promise((resolve) => {
-      try {
-        // 先检查OpenClaw是否安装
-        checkOpenClawInstalled().then(openclawStatus => {
-          if (!openclawStatus.installed) {
-            resolve({ success: false, error: 'OpenClaw 未安装，请先安装 OpenClaw' });
-            return;
-          }
-
-          // 使用 UTF-8 编码执行命令
-          exec('chcp 65001', { shell: 'cmd.exe' }).catch(() => {});
-          const child = exec('openclaw plugins install @tencent-connect/openclaw-qqbot@latest', {
-            timeout: 120000,
-            windowsHide: true
-          });
-          
-          let output = '';
-          child.stdout.on('data', (data) => {
-            output += data.toString();
-          });
-          child.stderr.on('data', (data) => {
-            output += data.toString();
-          });
-          
-          child.on('close', (code) => {
-            if (code === 0) {
-              resolve({ success: true, output });
-            } else {
-              // 处理错误信息，避免乱码
-              let errorMsg = output || '安装失败';
-              // 清理错误信息，移除乱码
-              errorMsg = errorMsg.replace(/[\u0000-\u001F\u007F-\u00FF]/g, '');
-              if (errorMsg.includes('openclaw') && (errorMsg.includes('not found') || errorMsg.includes('未找到'))) {
-                errorMsg = 'OpenClaw 未安装，请先安装 OpenClaw';
-              }
-              resolve({ success: false, error: errorMsg });
-            }
-          });
-          
-          child.on('error', (error) => {
-            let errorMsg = error.message;
-            // 清理错误信息，移除乱码
-            errorMsg = errorMsg.replace(/[\u0000-\u001F\u007F-\u00FF]/g, '');
-            if (errorMsg.includes('openclaw') && (errorMsg.includes('not found') || errorMsg.includes('未找到'))) {
-              errorMsg = 'OpenClaw 未安装，请先安装 OpenClaw';
-            }
-            resolve({ success: false, error: errorMsg });
-          });
-        });
-      } catch (error) {
-        let errorMsg = error.message;
-        // 清理错误信息，移除乱码
-        errorMsg = errorMsg.replace(/[\u0000-\u001F\u007F-\u00FF]/g, '');
-        if (errorMsg.includes('openclaw') && (errorMsg.includes('not found') || errorMsg.includes('未找到'))) {
-          errorMsg = 'OpenClaw 未安装，请先安装 OpenClaw';
-        }
-        resolve({ success: false, error: errorMsg });
+    try {
+      // 先检查OpenClaw是否安装
+      const openclawStatus = await checkOpenClawInstalled();
+      if (!openclawStatus.installed) {
+        return { success: false, error: 'OpenClaw 未安装，请先安装 OpenClaw' };
       }
-    });
+
+      // 使用公共方法安装插件
+      const result = await installOpenClawPlugin('@tencent-connect/openclaw-qqbot@latest');
+      return result;
+    } catch (error) {
+      let errorMsg = error.message;
+      // 清理错误信息，移除乱码
+      errorMsg = errorMsg.replace(/[\u0000-\u001F\u007F-\u00FF]/g, '');
+      if (errorMsg.includes('openclaw') && (errorMsg.includes('not found') || errorMsg.includes('未找到'))) {
+        errorMsg = 'OpenClaw 未安装，请先安装 OpenClaw';
+      }
+      return { success: false, error: errorMsg };
+    }
   });
 
   // 打开QQ机器人管理页面
@@ -291,15 +250,16 @@ export function registerQqHandlers(ipcMain) {
         console.log('[DEBUG] 跳过 QQ 渠道绑定:', { appId, appSecret: appSecret.substring(0, 4) + '...' });
         return { success: true, message: '[DEBUG] 已跳过 QQ 渠道绑定' };
       }
-      
+
       const token = `${appId}:${appSecret}`;
-      execSync(`openclaw channels add --channel qqbot --token "${token}"`, { 
-        encoding: 'utf-8',
-        windowsHide: true 
-      });
-      return { success: true, message: 'QQ渠道配置成功' };
+      return await addOpenClawChannel('qqbot', token);
     } catch (error) {
       return { success: false, error: error.message };
     }
+  });
+
+  // 重启 OpenClaw 服务
+  ipcMain.handle('restart-openclaw', async () => {
+    return await restartOpenClawGateway();
   });
 }

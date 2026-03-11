@@ -1,6 +1,7 @@
 // 配置管理相关 IPC 处理程序
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { isDebugEnabled, getCurrentConfigPath } from '../config/debug-config.js';
 import {
   listProviders,
@@ -11,6 +12,11 @@ import {
   deleteProvider,
   updateModel,
 } from '../utils/openclaw-model-manager.js';
+
+// 生成随机 token
+function generateRandomToken(length = 40) {
+  return crypto.randomBytes(length).toString('hex');
+}
 
 // 获取当前配置路径
 export function getConfigPath() {
@@ -94,13 +100,84 @@ export function registerConfigHandlers(ipcMain) {
         fs.mkdirSync(configDir, { recursive: true });
       }
 
+      const now = new Date().toISOString();
       const defaultConfig = {
-        models: {
-          providers: {}
+        wizard: {
+          lastRunAt: now,
+          lastRunVersion: '2026.3.8',
+          lastRunCommand: 'onboard',
+          lastRunMode: 'local'
         },
         agents: {
-          list: [],
-          defaults: {}
+          defaults: {
+            model: {
+              primary: 'henryczq/zzgz'
+            },
+            models: {
+              'henryczq/zzgz': {}
+            },
+            workspace: '~\\.openclaw\\workspace',
+            compaction: {
+              mode: 'safeguard'
+            },
+            maxConcurrent: 4,
+            subagents: {
+              maxConcurrent: 8
+            }
+          }
+        },
+        tools: {
+          profile: 'coding'
+        },
+        messages: {
+          ackReactionScope: 'group-mentions'
+        },
+        commands: {
+          native: 'auto',
+          nativeSkills: 'auto',
+          restart: true,
+          ownerDisplay: 'raw'
+        },
+        session: {
+          dmScope: 'per-channel-peer'
+        },
+        hooks: {
+          internal: {
+            enabled: true,
+            entries: {
+              'boot-md': {
+                enabled: true
+              }
+            }
+          }
+        },
+        gateway: {
+          port: 18789,
+          mode: 'local',
+          bind: 'loopback',
+          auth: {
+            mode: 'token',
+            token: generateRandomToken(48)
+          },
+          tailscale: {
+            mode: 'off',
+            resetOnExit: false
+          },
+          nodes: {
+            denyCommands: [
+              'camera.snap',
+              'camera.clip',
+              'screen.record',
+              'contacts.add',
+              'calendar.add',
+              'reminders.add',
+              'sms.send'
+            ]
+          }
+        },
+        meta: {
+          lastTouchedVersion: '2026.3.8',
+          lastTouchedAt: now
         }
       };
 

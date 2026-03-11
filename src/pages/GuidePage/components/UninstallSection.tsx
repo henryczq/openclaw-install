@@ -16,6 +16,7 @@ export function UninstallSection() {
         size="small"
         pagination={false}
         dataSource={uninstallSteps}
+        rowKey="step"
         columns={[
           { title: '步骤', dataIndex: 'step', key: 'step' },
           { title: '命令', dataIndex: 'command', key: 'command', render: (text) => <code>{text}</code> },

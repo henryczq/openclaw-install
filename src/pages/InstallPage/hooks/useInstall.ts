@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { useAppStore } from '../../../store';
-import { createDefaultOpenClawConfig } from '../utils/openclawConfig';
 import type { DownloadProgressEvent } from '../../../types';
 
 export function useInstall(enableGitProxy: boolean = false) {
@@ -16,11 +15,6 @@ export function useInstall(enableGitProxy: boolean = false) {
   const [isInstalling, setIsInstalling] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [downloadProgress, setDownloadProgress] = useState<{[key: string]: number}>({});
-
-  const saveDefaultConfig = useCallback(async () => {
-    const config = createDefaultOpenClawConfig();
-    return window.electronAPI.saveOpenClawConfig(config);
-  }, []);
 
   const isAllInstalled = useCallback(() => {
     return systemStatus.node.installed && 
@@ -286,39 +280,22 @@ export function useInstall(enableGitProxy: boolean = false) {
       const result = await window.electronAPI.installOpenClaw({ enableGitProxy });
       
       if (result.success) {
-        if (result.detached) {
-          // 独立窗口模式，安装正在进行中
-          addLog(result.message || '安装命令已在独立窗口中启动');
-          addLog('请在PowerShell窗口中等待安装完成...');
-          addLog('安装完成后按任意键关闭PowerShell窗口，然后点击"重新安装"检查状态');
+        if (result.needVerify) {
+          // PowerShell窗口已关闭，需要验证安装结果
+          addLog('PowerShell安装窗口已关闭，正在验证安装结果...');
           
-          // 持续检查安装状态，直到安装完成或超时（20分钟）
-          addLog('正在等待安装完成，请稍候...');
-          const maxWaitTime = 20 * 60 * 1000; // 20分钟
-          const checkInterval = 5000; // 每5秒检查一次
-          const startTime = Date.now();
+          const checkResult = await window.electronAPI.checkOpenClaw();
+          setSystemStatus({ openclaw: checkResult });
           
-          while (Date.now() - startTime < maxWaitTime) {
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            
-            // 检查安装结果
-            const checkResult = await window.electronAPI.checkOpenClaw();
-            if (checkResult.installed) {
-              setSystemStatus({ openclaw: checkResult });
-              updateStepStatus('install-openclaw', 'success', '安装完成');
-              addLog('OpenClaw安装成功');
-              return true;
-            }
-            
-            addLog('安装仍在进行中，继续等待...');
+          if (checkResult.installed) {
+            updateStepStatus('install-openclaw', 'success', '安装完成');
+            addLog('OpenClaw安装成功');
+            return true;
+          } else {
+            updateStepStatus('install-openclaw', 'error', '安装未完成，请重新安装');
+            addLog('OpenClaw安装未完成，请检查PowerShell窗口中的错误信息并重新安装');
+            return false;
           }
-          
-          // 超时
-          addLog('等待超时，OpenClaw可能仍在安装中');
-          addLog('请查看PowerShell窗口确认安装状态');
-          addLog('如果PowerShell窗口已关闭且安装完成，请点击"重新安装"按钮');
-          updateStepStatus('install-openclaw', 'running', '请在PowerShell窗口中查看进度');
-          return false;
         } else {
           // 正常模式
           const checkResult = await window.electronAPI.checkOpenClaw();
@@ -372,9 +349,9 @@ export function useInstall(enableGitProxy: boolean = false) {
   const initConfig = useCallback(async () => {
     updateStepStatus('init-config', 'running');
     addLog('正在创建OpenClaw配置文件...');
-    
+
     try {
-      const result = await saveDefaultConfig();
+      const result = await window.electronAPI.initOpenClawConfig();
       if (result.success) {
         updateStepStatus('init-config', 'success', '配置已创建');
         addLog('OpenClaw配置文件创建成功');
@@ -387,7 +364,7 @@ export function useInstall(enableGitProxy: boolean = false) {
       addLog(`配置文件创建失败: ${error}`);
       return false;
     }
-  }, [saveDefaultConfig, addLog, updateStepStatus]);
+  }, [addLog, updateStepStatus]);
 
   const startInstall = useCallback(async () => {
     setIsInstalling(true);

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { App } from 'antd';
 import { useAppStore } from '../../../store';
 import {
@@ -12,12 +12,14 @@ import {
 export function useQqConfig() {
   const { qqConfig, setQqConfig, addLog: storeAddLog } = useAppStore();
   const { message: messageApi } = App.useApp();
-  
+
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pluginInstalled, setPluginInstalled] = useState(false);
   const [installLogs, setInstallLogs] = useState<string[]>([]);
   const [rpaProgress, setRpaProgress] = useState<QqProgressItem[]>([]);
+  const [openclawInstalled, setOpenclawInstalled] = useState<boolean | null>(null);
+  const [isCheckingOpenclaw, setIsCheckingOpenclaw] = useState(true);
 
   const notifySuccess = useCallback((text: string) => {
     messageApi?.success(text);
@@ -37,6 +39,27 @@ export function useQqConfig() {
   const getErrorMessage = useCallback((error: unknown) => (
     error instanceof Error ? error.message : String(error)
   ), []);
+
+  // 检查 OpenClaw 是否安装
+  useEffect(() => {
+    const checkOpenClaw = async () => {
+      setIsCheckingOpenclaw(true);
+      try {
+        const result = await window.electronAPI.checkOpenClaw();
+        setOpenclawInstalled(result.installed);
+        if (!result.installed) {
+          notifyError('OpenClaw 未安装，请先安装 OpenClaw');
+        }
+      } catch (error) {
+        console.error('检查 OpenClaw 失败:', error);
+        setOpenclawInstalled(false);
+        notifyError('检查 OpenClaw 失败');
+      } finally {
+        setIsCheckingOpenclaw(false);
+      }
+    };
+    checkOpenClaw();
+  }, [notifyError]);
 
   const startAction = useCallback((action: QqAction, logMessage: string, options?: { resetLogs?: boolean }) => {
     setIsProcessing(true);
@@ -73,12 +96,12 @@ export function useQqConfig() {
         setCurrentStep(2);
       } else {
         setPluginInstalled(false);
-        updateProgress(0, { status: 'error', message: '插件未安装' });
-        addLog('QQ插件未安装，需要先安装插件');
+        updateProgress(0, { status: 'error', message: result.error || '插件未安装' });
+        addLog(result.error || 'QQ插件未安装，需要先安装插件');
         if (result.output) {
           addLog(`插件列表: ${result.output}`);
         }
-        notifyError('QQ插件未安装，请先安装插件');
+        notifyError(result.error || 'QQ插件未安装，请先安装插件');
         setCurrentStep(1);
       }
     } catch (error: unknown) {
@@ -133,55 +156,94 @@ export function useQqConfig() {
         console.log('[openConsole] 页面打开成功');
         updateProgress(0, { status: 'success' });
         addLog('已打开QQ机器人管理页面');
-        console.log('[openConsole] 页面已打开，准备等待5秒后检查登录状态');
-        
-        // 等待5秒后检查登录状态
-        addLog('等待5秒后检查登录状态...');
-        console.log('[openConsole] 开始等待5秒...');
-        await wait(5000);
-        console.log('[openConsole] 5秒等待结束');
-        
-        console.log('[openConsole] 开始检查登录状态');
-        addLog('正在检测登录状态...');
-        
-        try {
-          console.log('[openConsole] 调用 qqCheckLogin...');
-          const checkResult = await window.electronAPI.qqCheckLogin();
-          console.log('[openConsole] 登录状态检查结果:', checkResult);
-          
-          const isLoggedIn = checkResult.loggedIn || false;
-          console.log('[openConsole] 是否已登录:', isLoggedIn);
-          
-          if (isLoggedIn) {
-            addLog('检测到已登录，自动创建机器人...');
-            notifySuccess('检测到已登录，自动创建机器人');
-            setCurrentStep(3);
-            await createRobot();
-          } else {
-            addLog('未检测到登录，请扫码登录后点击"下一步"继续');
-            notifySuccess('请扫码登录后点击"下一步"继续');
-            setCurrentStep(3);
-            // 不停止页面，让用户继续操作
+        addLog('请在打开的页面中扫码登录');
+        addLog('系统将在后台自动检测登录状态（每5秒检查一次，最多2分钟）');
+        notifySuccess('请在打开的页面中扫码登录，系统将自动检测');
+
+        // 后台轮询检查登录状态
+        addLog('开始自动检测登录状态...');
+        const maxAttempts = 24; // 24次 * 5秒 = 120秒 = 2分钟
+        let attempts = 0;
+
+        const checkInterval = setInterval(async () => {
+          attempts++;
+          addLog(`第 ${attempts}/${maxAttempts} 次检查登录状态...`);
+
+          try {
+            const checkResult = await window.electronAPI.qqCheckLogin();
+            console.log(`[openConsole] 第 ${attempts} 次登录状态检查:`, checkResult);
+
+            if (checkResult.loggedIn) {
+              // 检测到已登录，停止轮询
+              clearInterval(checkInterval);
+              addLog('✅ 检测到已登录，自动进入下一步...');
+              notifySuccess('检测到已登录，自动创建机器人');
+              setCurrentStep(3);
+              await createRobot();
+              return;
+            }
+
+            // 检查是否达到最大次数
+            if (attempts >= maxAttempts) {
+              clearInterval(checkInterval);
+              addLog('⏰ 2分钟内未检测到登录，请扫码登录后手动点击"已登录，继续"');
+              notifyError('2分钟内未检测到登录，请手动点击"已登录，继续"');
+              setIsProcessing(false);
+            }
+          } catch (error) {
+            console.error(`[openConsole] 第 ${attempts} 次检查出错:`, error);
+            // 出错继续轮询，直到达到最大次数
+            if (attempts >= maxAttempts) {
+              clearInterval(checkInterval);
+              addLog('⏰ 检查超时，请扫码登录后手动点击"已登录，继续"');
+              notifyError('检查超时，请手动点击"已登录，继续"');
+              setIsProcessing(false);
+            }
           }
-        } catch (checkError) {
-          console.error('[openConsole] 检查登录状态出错:', checkError);
-          addLog('检查登录状态出错，请扫码登录后点击"下一步"继续');
-          notifySuccess('请扫码登录后点击"下一步"继续');
-          setCurrentStep(3);
-        }
+        }, 5000); // 每5秒检查一次
+
       } else {
-          console.log('[openConsole] 页面打开失败:', result.error);
-          throw new Error(result.error || '打开失败');
-        }
-        
-        // 流程完成，释放 processing 状态
-        console.log('[openConsole] 流程完成，释放 processing 状态');
-        setIsProcessing(false);
-        
+        console.log('[openConsole] 页面打开失败:', result.error);
+        throw new Error(result.error || '打开失败');
+      }
+
     } catch (error) {
       const errorMsg = getErrorMessage(error);
       addLog(`打开页面失败: ${errorMsg}`);
       notifyError('打开页面失败');
+      setIsProcessing(false);
+    }
+  };
+
+  const checkLoginAndContinue = async () => {
+    startAction('check-login', '正在检查登录状态...');
+
+    try {
+      updateProgress(0, { status: 'running' });
+      addLog('正在检测登录状态...');
+
+      const checkResult = await window.electronAPI.qqCheckLogin();
+      console.log('[checkLoginAndContinue] 登录状态检查结果:', checkResult);
+
+      const isLoggedIn = checkResult.loggedIn || false;
+
+      if (isLoggedIn) {
+        updateProgress(0, { status: 'success', message: '已登录' });
+        addLog('检测到已登录，自动创建机器人...');
+        notifySuccess('检测到已登录，自动创建机器人');
+        setCurrentStep(3);
+        await createRobot();
+      } else {
+        updateProgress(0, { status: 'error', message: '未登录' });
+        addLog('未检测到登录，请先扫码登录');
+        notifyError('未检测到登录，请先扫码登录');
+      }
+    } catch (error) {
+      console.error('[checkLoginAndContinue] 检查登录状态出错:', error);
+      updateProgress(0, { status: 'error', message: '检查失败' });
+      addLog('检查登录状态出错，请确保已扫码登录');
+      notifyError('检查登录状态失败');
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -326,6 +388,9 @@ export function useQqConfig() {
       case 'open-console':
         await openConsole();
         break;
+      case 'check-login':
+        await checkLoginAndContinue();
+        break;
       case 'create-robot':
         await createRobot();
         break;
@@ -402,5 +467,7 @@ export function useQqConfig() {
     setQqConfig,
     handleQqAction,
     runAllSteps,
+    openclawInstalled,
+    isCheckingOpenclaw,
   };
 }

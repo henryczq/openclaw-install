@@ -4,6 +4,7 @@ import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { listOpenClawPlugins, installOpenClawPlugin, addOpenClawChannel } from '../utils/openclaw-commands.js';
 
 const execAsync = promisify(exec);
 let feishuWindow = null;
@@ -58,9 +59,15 @@ export function registerFeishuHandlers() {
   // 检查飞书插件
   ipcMain.handle('check-feishu-plugin', async () => {
     try {
-      const { stdout } = await execAsync('openclaw plugins list');
-      const hasFeishu = stdout.toLowerCase().includes('feishu') || stdout.toLowerCase().includes('lark');
-      return { installed: hasFeishu, output: stdout };
+      const result = await listOpenClawPlugins();
+      if (!result.success) {
+        return { installed: false, error: result.error };
+      }
+      const hasFeishu = result.plugins.some(plugin => {
+        const lowerPlugin = plugin.toLowerCase();
+        return lowerPlugin.includes('feishu') || lowerPlugin.includes('lark');
+      });
+      return { installed: hasFeishu, output: result.plugins.join('\n') };
     } catch (error) {
       return { installed: false, error: error.message };
     }
@@ -69,17 +76,11 @@ export function registerFeishuHandlers() {
   // 安装飞书插件
   ipcMain.handle('install-feishu-plugin', async (event) => {
     try {
-      const child = exec('openclaw plugin install feishu', { 
-        timeout: 120000,
-        windowsHide: true
-      });
-      
-      child.stdout.on('data', (data) => {
-        event.sender.send('feishu-install-progress', data.toString());
-      });
-      
-      child.stderr.on('data', (data) => {
-        event.sender.send('feishu-install-progress', data.toString());
+      // 使用公共方法安装插件，并通过回调发送进度
+      const result = await installOpenClawPlugin('feishu', {
+        onProgress: (data) => {
+          event.sender.send('feishu-install-progress', data);
+        }
       });
       
       return new Promise((resolve) => {
@@ -87,6 +88,8 @@ export function registerFeishuHandlers() {
           resolve({ success: code === 0 });
         });
       });
+
+      return result;
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -95,9 +98,8 @@ export function registerFeishuHandlers() {
   // 配置飞书渠道
   ipcMain.handle('config-feishu-channel', async (event, appId, appSecret) => {
     try {
-      // 这里实现配置飞书的逻辑
-      console.log(`Configuring Feishu channel with App ID: ${appId}`);
-      return { success: true, message: '飞书渠道配置成功' };
+      const token = `${appId}:${appSecret}`;
+      return await addOpenClawChannel('feishu', token);
     } catch (error) {
       return { success: false, error: error.message };
     }

@@ -47,9 +47,12 @@ export function ServiceManagerTab() {
       }
 
       // 获取Gateway状态
-      if (window.electronAPI?.checkPort) {
+      if (window.electronAPI?.checkGatewayStatus) {
+        const statusResult = await window.electronAPI.checkGatewayStatus(18789);
+        setGatewayStatus(statusResult.running ? 'running' : 'stopped');
+      } else if (window.electronAPI?.checkPort) {
+        // 兼容旧方法
         const portResult = await window.electronAPI.checkPort(18789);
-        // open: true 表示端口被占用（服务运行中），open: false 表示端口可用（服务已停止）
         setGatewayStatus(portResult.open ? 'running' : 'stopped');
       }
     } catch (error) {
@@ -75,33 +78,44 @@ export function ServiceManagerTab() {
   };
 
   // 执行服务命令
-  const executeServiceCommand = async (command: string, successMsg: string) => {
+  const executeServiceCommand = async (command: 'start' | 'stop' | 'restart', successMsg: string) => {
     setLoading(true);
     try {
-      if (window.electronAPI?.executeCommand) {
-        console.log(`执行命令: openclaw gateway ${command}`);
-        const result = await window.electronAPI.executeCommand(`openclaw gateway ${command}`, {
-          timeout: 30000,
-        });
-        console.log('命令执行结果:', result);
-        
-        if (result.success) {
-          showSuccess(successMsg);
-          // 延迟刷新状态，停止服务需要更长时间
-          const delay = command === 'stop' ? 3000 : 1500;
-          setTimeout(() => {
-            console.log('第一次刷新状态...');
-            fetchStatus();
-          }, delay);
-          // 再次刷新确保状态更新
-          setTimeout(() => {
-            console.log('第二次刷新状态...');
-            fetchStatus();
-          }, delay + 2000);
-        } else {
-          showError(result.error || '执行失败');
-          console.error('命令执行失败:', result.error);
-        }
+      let result;
+      console.log(`执行服务命令: ${command}`);
+
+      switch (command) {
+        case 'start':
+          result = await window.electronAPI?.startOpenClawGateway?.();
+          break;
+        case 'stop':
+          result = await window.electronAPI?.stopOpenClawGateway?.();
+          break;
+        case 'restart':
+          result = await window.electronAPI?.restartOpenClawGateway?.();
+          break;
+        default:
+          throw new Error(`未知的服务命令: ${command}`);
+      }
+
+      console.log('命令执行结果:', result);
+
+      if (result?.success) {
+        showSuccess(successMsg);
+        // 延迟刷新状态，停止服务需要更长时间
+        const delay = command === 'stop' ? 3000 : 1500;
+        setTimeout(() => {
+          console.log('第一次刷新状态...');
+          fetchStatus();
+        }, delay);
+        // 再次刷新确保状态更新
+        setTimeout(() => {
+          console.log('第二次刷新状态...');
+          fetchStatus();
+        }, delay + 2000);
+      } else {
+        showError(result?.error || '执行失败');
+        console.error('命令执行失败:', result?.error);
       }
     } catch (error) {
       showError('执行命令失败');

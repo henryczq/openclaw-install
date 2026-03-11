@@ -2,6 +2,7 @@ export type QqAction =
   | 'check-plugin'
   | 'install-plugin'
   | 'open-console'
+  | 'check-login'
   | 'create-robot'
   | 'get-credentials'
   | 'bind-channel'
@@ -23,6 +24,9 @@ const QQ_PROGRESS_TEMPLATES: Record<QqAction, QqProgressItem[]> = {
   ],
   'open-console': [
     { step: '打开QQ机器人管理页面', status: 'pending' },
+  ],
+  'check-login': [
+    { step: '检查登录状态', status: 'pending' },
   ],
   'create-robot': [
     { step: '点击创建机器人', status: 'pending' },
