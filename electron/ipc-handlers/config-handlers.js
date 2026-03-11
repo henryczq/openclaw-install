@@ -2,6 +2,15 @@
 import fs from 'fs';
 import path from 'path';
 import { isDebugEnabled, getCurrentConfigPath } from '../config/debug-config.js';
+import {
+  listProviders,
+  listModels,
+  getDefaultModel,
+  setDefaultModel,
+  deleteModel,
+  deleteProvider,
+  updateModel,
+} from '../utils/openclaw-model-manager.js';
 
 // 获取当前配置路径
 export function getConfigPath() {
@@ -129,15 +138,26 @@ export function registerConfigHandlers(ipcMain) {
   ipcMain.handle('list-backups', async () => {
     try {
       const configPath = getCurrentConfigPath();
+      console.log('[Config] list-backups - configPath:', configPath);
+      
       const configDir = path.dirname(configPath);
+      console.log('[Config] list-backups - configDir:', configDir);
       
       if (!fs.existsSync(configDir)) {
+        console.log('[Config] list-backups - 目录不存在，返回空列表');
         return { success: true, backups: [] };
       }
       
+      // 获取配置文件的基本名称（例如：openclaw-test.json 或 openclaw.json）
+      const configBaseName = path.basename(configPath);
+      console.log('[Config] list-backups - configBaseName:', configBaseName);
+      
       const files = fs.readdirSync(configDir);
+      console.log('[Config] list-backups - 目录中的所有文件:', files);
+      
+      // 过滤出当前配置的备份文件（格式：{configBaseName}.{timestamp}.backup）
       const backups = files
-        .filter(file => file.startsWith('openclaw.json.') && file.endsWith('.backup'))
+        .filter(file => file.startsWith(configBaseName + '.') && file.endsWith('.backup'))
         .map(file => {
           const filePath = path.join(configDir, file);
           const stats = fs.statSync(filePath);
@@ -149,9 +169,10 @@ export function registerConfigHandlers(ipcMain) {
         })
         .sort((a, b) => b.time.getTime() - a.time.getTime());
       
+      console.log('[Config] list-backups - 找到的备份:', backups);
       return { success: true, backups };
     } catch (error) {
-      console.error('Error in list-backups:', error);
+      console.error('[Config] Error in list-backups:', error);
       return { success: false, error: error.message };
     }
   });
@@ -160,9 +181,13 @@ export function registerConfigHandlers(ipcMain) {
   ipcMain.handle('save-raw-config', async (event, content) => {
     try {
       const configPath = getCurrentConfigPath();
+      console.log('[Config] save-raw-config - configPath:', configPath);
+      
       const configDir = path.dirname(configPath);
+      console.log('[Config] save-raw-config - configDir:', configDir);
       
       if (!fs.existsSync(configDir)) {
+        console.log('[Config] save-raw-config - 目录不存在，创建目录');
         fs.mkdirSync(configDir, { recursive: true });
       }
       
@@ -170,15 +195,18 @@ export function registerConfigHandlers(ipcMain) {
       if (fs.existsSync(configPath)) {
         const backupPath = `${configPath}.${Date.now()}.backup`;
         fs.copyFileSync(configPath, backupPath);
-        console.log('Created backup:', backupPath);
+        console.log('[Config] save-raw-config - 已创建备份:', backupPath);
+      } else {
+        console.log('[Config] save-raw-config - 配置文件不存在，跳过备份');
       }
       
       // 保存新配置
       fs.writeFileSync(configPath, content, 'utf-8');
+      console.log('[Config] save-raw-config - 配置已保存到:', configPath);
       
       return { success: true };
     } catch (error) {
-      console.error('Error in save-raw-config:', error);
+      console.error('[Config] Error in save-raw-config:', error);
       return { success: false, error: error.message };
     }
   });
@@ -205,6 +233,93 @@ export function registerConfigHandlers(ipcMain) {
       return { success: true };
     } catch (error) {
       console.error('Error in restore-backup:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 模型管理 IPC 处理程序
+  // 列出所有 Providers
+  ipcMain.handle('list-providers', async () => {
+    try {
+      const providers = listProviders();
+      return { success: true, providers };
+    } catch (error) {
+      console.error('Error in list-providers:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 列出所有 Models
+  ipcMain.handle('list-models', async () => {
+    try {
+      const models = listModels();
+      return { success: true, models };
+    } catch (error) {
+      console.error('Error in list-models:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 获取默认模型
+  ipcMain.handle('get-default-model', async () => {
+    try {
+      const model = getDefaultModel();
+      return { success: true, model };
+    } catch (error) {
+      console.error('Error in get-default-model:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 设置默认模型
+  ipcMain.handle('set-default-model', async (event, providerId, modelId) => {
+    try {
+      const result = setDefaultModel(providerId, modelId);
+      return { success: result.success, message: result.message };
+    } catch (error) {
+      console.error('Error in set-default-model:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 删除模型
+  ipcMain.handle('delete-model', async (event, providerId, modelId, autoDeleteProvider = false) => {
+    try {
+      const result = deleteModel(providerId, modelId, autoDeleteProvider);
+      return {
+        success: result.success,
+        message: result.message,
+        providerDeleted: result.providerDeleted,
+        providerEmpty: result.providerEmpty,
+      };
+    } catch (error) {
+      console.error('Error in delete-model:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 删除 Provider
+  ipcMain.handle('delete-provider', async (event, providerId) => {
+    try {
+      const result = deleteProvider(providerId);
+      return { success: result.success, message: result.message };
+    } catch (error) {
+      console.error('Error in delete-provider:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 更新模型
+  ipcMain.handle('update-model', async (event, params) => {
+    try {
+      const result = updateModel(params);
+      return {
+        success: result.success,
+        message: result.message,
+        fullName: result.fullName,
+      };
+    } catch (error) {
+      console.error('Error in update-model:', error);
       return { success: false, error: error.message };
     }
   });

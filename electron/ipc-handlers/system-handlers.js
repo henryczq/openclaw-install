@@ -1,6 +1,9 @@
 // 系统检测相关 IPC 处理程序
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const execAsync = promisify(exec);
 
@@ -140,7 +143,7 @@ export function registerSystemHandlers(ipcMain) {
   // 配置Git代理
   ipcMain.handle('config-git-proxy', async () => {
     try {
-      await execAsync('git config --global url."https://github.com/".insteadOf ssh://git@github.com/');
+      await execAsync('git config --global --replace-all url."https://github.com/".insteadOf ssh://git@github.com/');
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -168,7 +171,6 @@ export function registerSystemHandlers(ipcMain) {
   // 获取系统信息
   ipcMain.handle('get-system-info', async () => {
     try {
-      const os = require('os');
       return {
         platform: os.platform(),
         arch: os.arch(),
@@ -183,6 +185,62 @@ export function registerSystemHandlers(ipcMain) {
         version: process.version,
         tempPath: process.env.TEMP || process.env.TMP || '/tmp'
       };
+    }
+  });
+
+  // 检查 VC++ 运行库是否安装
+  ipcMain.handle('check-vcredist', async () => {
+    try {
+      // 仅在 Windows 下检查
+      if (process.platform !== 'win32') {
+        return { installed: true, message: '非 Windows 系统，跳过检查' };
+      }
+
+      // 获取 Windows 系统的 System32 目录和 SysWOW64 目录
+      const windir = process.env.windir || 'C:\\Windows';
+      const system32Path = path.join(windir, 'System32');
+      const sysWOW64Path = path.join(windir, 'SysWOW64');
+
+      // 检查关键的运行库文件是否存在（多个位置）
+      const checkPaths = [
+        path.join(system32Path, 'vcruntime140.dll'),
+        path.join(system32Path, 'msvcp140.dll'),
+        path.join(sysWOW64Path, 'vcruntime140.dll'),
+        path.join(sysWOW64Path, 'msvcp140.dll'),
+      ];
+
+      const results = {};
+      let foundCount = 0;
+      for (const checkPath of checkPaths) {
+        const exists = fs.existsSync(checkPath);
+        results[path.basename(checkPath) + '_' + path.dirname(checkPath).split('\\').pop()] = exists;
+        if (exists) foundCount++;
+      }
+
+      // 也检查注册表
+      let registryInstalled = false;
+      try {
+        const { stdout } = await execAsync('reg query "HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64" /v Version 2>nul || reg query "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64" /v Version 2>nul || echo NOT_FOUND');
+        registryInstalled = stdout.includes('Version') && !stdout.includes('NOT_FOUND');
+      } catch (e) {
+        // 注册表查询失败，忽略
+      }
+
+      // 如果找到至少2个DLL文件，或者注册表有记录，认为已安装
+      const installed = foundCount >= 2 || registryInstalled;
+
+      console.log('[check-vcredist] 检测结果:', { foundCount, registryInstalled, results });
+
+      return {
+        installed,
+        foundCount,
+        registryInstalled,
+        details: results,
+        message: installed ? 'VC++ 运行库已安装' : '缺少 VC++ 运行库'
+      };
+    } catch (error) {
+      console.error('[check-vcredist] Error:', error);
+      return { installed: false, error: error.message };
     }
   });
 }

@@ -60,7 +60,7 @@ export function AIConfigSection() {
 
       <Alert
         message="配置说明"
-        description="支持火山引擎和 DeepSeek 两种提供商，配置会自动保存到 openclaw.json 文件中。"
+        description="支持火山引擎、KIMI，以及兼容 OpenAI Chat Completions 的自定义提供商，配置会自动保存到 openclaw.json 文件中。"
         type="info"
         showIcon
         style={{ marginTop: 16 }}

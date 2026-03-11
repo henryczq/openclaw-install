@@ -1,183 +1,310 @@
-import { useState, useEffect } from 'react';
-import { Card, Typography, Select, Button, Space, Alert, Input, Tag, message, Tabs } from 'antd';
-import { SaveOutlined, LinkOutlined, CheckCircleOutlined, LoadingOutlined } from '@ant-design/icons';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Button, Tabs, Typography, message } from 'antd';
+import { LinkOutlined } from '@ant-design/icons';
 import { useAppStore } from '../store';
+import { AIProviderFormCard } from './ai-config/AIProviderFormCard';
+import { KIMI_ENDPOINT, KIMI_MODELS, VOLCENGINE_ENDPOINT, VOLCENGINE_MODELS } from './ai-config/constants';
+import type { ConnectionTestPayload, ProviderConfigPayload, ProviderTabKey, Status } from './ai-config/types';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
-const VOLCENGINE_MODELS = [
-  { value: 'doubao-seed-2.0-code', label: '豆包 Seed 2.0 Code', desc: '代码生成专用模型' },
-  { value: 'doubao-seed-2.0-pro', label: '豆包 Seed 2.0 Pro', desc: '专业版通用模型' },
-  { value: 'doubao-seed-2.0-lite', label: '豆包 Seed 2.0 Lite', desc: '轻量版快速响应' },
-  { value: 'doubao-seed-code', label: '豆包 Seed Code', desc: '代码辅助模型' },
-  { value: 'minimax-m2.5', label: 'MiniMax M2.5', desc: 'MiniMax大模型' },
-  { value: 'glm-4.7', label: 'GLM-4.7', desc: '智谱AI大模型' },
-  { value: 'deepseek-v3.2', label: 'DeepSeek V3.2', desc: '深度求索大模型' },
-  { value: 'kimi-k2.5', label: 'Kimi K2.5', desc: '月之暗面大模型' },
-];
+function isValidUrl(value: string) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-const VOLCENGINE_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/coding/v3';
-const KIMI_ENDPOINT = 'https://api.moonshot.cn/v1';
+function isValidProvider(value: string) {
+  return /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(value);
+}
 
-const KIMI_MODELS = [
-  { value: 'kimi-k2.5', label: 'Kimi K2.5', desc: 'Kimi 迄今最智能的模型，支持视觉与文本输入，上下文 256k' },
-  { value: 'kimi-k2-0905-preview', label: 'Kimi K2 0905', desc: '上下文长度 256k，增强 Agentic Coding 能力' },
-  { value: 'kimi-k2-0711-preview', label: 'Kimi K2 0711', desc: '上下文长度 128k，MoE 架构，超强代码和 Agent 能力' },
-  { value: 'kimi-k2-turbo-preview', label: 'Kimi K2 Turbo', desc: 'K2 高速版本，输出速度每秒 60-100 tokens，上下文 256k' },
-  { value: 'kimi-k2-thinking', label: 'Kimi K2 Thinking', desc: 'K2 长思考模型，支持多步工具调用，上下文 256k' },
-  { value: 'kimi-k2-thinking-turbo', label: 'Kimi K2 Thinking Turbo', desc: 'K2 长思考高速版，深度推理，输出速度每秒 60-100 tokens' },
-  { value: 'moonshot-v1-8k', label: 'Moonshot V1 8K', desc: '适用于生成短文本，上下文长度 8k' },
-  { value: 'moonshot-v1-32k', label: 'Moonshot V1 32K', desc: '适用于生成长文本，上下文长度 32k' },
-  { value: 'moonshot-v1-128k', label: 'Moonshot V1 128K', desc: '适用于生成超长文本，上下文长度 128k' },
-  { value: 'moonshot-v1-8k-vision-preview', label: 'Moonshot V1 8K Vision', desc: 'Vision 视觉模型，理解图片内容，上下文 8k' },
-  { value: 'moonshot-v1-32k-vision-preview', label: 'Moonshot V1 32K Vision', desc: 'Vision 视觉模型，理解图片内容，上下文 32k' },
-];
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function AIConfigPage() {
   const { selectedModel, setSelectedModel, apiKey, setApiKey } = useAppStore();
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<Status>('idle');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isGettingKey, setIsGettingKey] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [saveErrorMessage, setSaveErrorMessage] = useState('');
   const [isTesting, setIsTesting] = useState(false);
-  const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [activeTab, setActiveTab] = useState('volcengine');
+  const [testStatus, setTestStatus] = useState<Status>('idle');
+  const [testErrorMessage, setTestErrorMessage] = useState('');
+  const [activeTab, setActiveTab] = useState<ProviderTabKey>('volcengine');
   const [kimiApiKey, setKimiApiKey] = useState('');
   const [kimiShowApiKey, setKimiShowApiKey] = useState(false);
   const [kimiSelectedModel, setKimiSelectedModel] = useState('kimi-k2.5');
+  const [customBaseUrl, setCustomBaseUrl] = useState('');
+  const [customModelId, setCustomModelId] = useState('');
+  const [customProvider, setCustomProvider] = useState('');
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [customShowApiKey, setCustomShowApiKey] = useState(false);
 
-  useEffect(() => {
-    loadConfigFromFile();
-  }, []);
+  const resetStatus = () => {
+    setSaveStatus('idle');
+    setSaveErrorMessage('');
+    setTestStatus('idle');
+    setTestErrorMessage('');
+  };
 
-  const loadConfigFromFile = async () => {
+  const loadConfigFromFile = useCallback(async () => {
     try {
-      const result = await window.electronAPI.readOpenClawConfig();
-      if (result.success && result.config) {
-        const config = result.config as any;
-        const savedModel = config?.agents?.defaults?.model?.primary;
-        const providers = config?.models?.providers;
-        if (savedModel) {
-          const [providerName, modelId] = savedModel.split(':');
-          if (providerName && modelId) {
-            const provider = providers?.[providerName];
-            if (provider?.apiKey) {
-              if (providerName === 'volcengine') {
-                setSelectedModel(modelId);
-                setApiKey(provider.apiKey);
-                setActiveTab('volcengine');
-              } else if (providerName === 'kimi') {
-                setKimiApiKey(provider.apiKey);
-                setActiveTab('kimi');
-              }
-            }
-          }
-        }
+      // 使用新的 getAIConfig 方法获取配置
+      const result = await window.electronAPI.getAIConfig();
+      if (!result.success || !result.models || result.models.length === 0) {
+        console.log('没有已保存的AI配置');
+        return;
       }
+
+      // 找到默认模型
+      const defaultModelFullName = result.defaultModel;
+      const defaultModel = defaultModelFullName
+        ? result.models.find(m => m.fullName === defaultModelFullName)
+        : result.models[0];
+
+      if (!defaultModel) {
+        return;
+      }
+
+      const { providerId, modelId, apiKey: savedApiKey, baseUrl: savedBaseUrl } = defaultModel;
+
+      if (providerId === 'volcengine') {
+        setSelectedModel(modelId);
+        setApiKey(savedApiKey || '');
+        setActiveTab('volcengine');
+        return;
+      }
+
+      if (providerId === 'kimi') {
+        setKimiSelectedModel(modelId);
+        setKimiApiKey(savedApiKey);
+        setActiveTab('kimi');
+        return;
+      }
+
+      setCustomBaseUrl(savedBaseUrl);
+      setCustomModelId(modelId);
+      setCustomProvider(providerId);
+      setCustomApiKey(savedApiKey);
+      setActiveTab('custom');
     } catch (error) {
       console.error('加载配置失败:', error);
+    }
+  }, [setApiKey, setSelectedModel]);
+
+  useEffect(() => {
+    void loadConfigFromFile();
+  }, [loadConfigFromFile]);
+
+  const saveProviderConfig = async (configData: ProviderConfigPayload, successText: string) => {
+    setIsSaving(true);
+    setSaveStatus('idle');
+    setSaveErrorMessage('');
+
+    try {
+      // 使用新的 saveAIConfig 方法
+      const result = await window.electronAPI.saveAIConfig({
+        providerId: configData.provider || 'custom',
+        baseUrl: configData.baseUrl,
+        apiKey: configData.apiKey,
+        modelId: configData.modelId,
+        modelName: configData.modelName || configData.modelId
+      });
+      if (!result.success) {
+        throw new Error(result.error || '未知错误');
+      }
+
+      setSaveStatus('success');
+      message.success(successText);
+    } catch (error: unknown) {
+      const nextErrorMessage = getErrorMessage(error, '保存失败');
+      setSaveStatus('error');
+      setSaveErrorMessage(nextErrorMessage);
+      message.error(nextErrorMessage);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const runConnectionTest = async (
+    config: ConnectionTestPayload,
+    emptyMessage: string,
+    successText: string
+  ) => {
+    if (!config.apiKey.trim()) {
+      message.error(emptyMessage);
+      return;
+    }
+
+    setIsTesting(true);
+    setTestStatus('idle');
+    setTestErrorMessage('');
+
+    try {
+      const result = await window.electronAPI.testAIConnection(config);
+      if (!result.success) {
+        const nextErrorMessage = result.error || 'AI连接失败，请检查配置是否正确';
+        setTestStatus('error');
+        setTestErrorMessage(nextErrorMessage);
+        message.error(nextErrorMessage);
+        return;
+      }
+
+      setTestStatus('success');
+      message.success(successText);
+    } catch (error: unknown) {
+      const nextErrorMessage = getErrorMessage(error, '测试连接失败');
+      setTestStatus('error');
+      setTestErrorMessage(nextErrorMessage);
+      message.error(nextErrorMessage);
+    } finally {
+      setIsTesting(false);
     }
   };
 
   const handleSave = async () => {
-    if (!apiKey.trim()) {
+    const trimmedApiKey = apiKey.trim();
+    if (!trimmedApiKey) {
       setSaveStatus('error');
-      setErrorMessage('API Key不能为空');
+      setSaveErrorMessage('API Key不能为空');
       return;
     }
-    setIsSaving(true);
-    try {
-      const result = await window.electronAPI.configOpenClawAI(selectedModel, apiKey);
-      if (result.success) {
-        setSaveStatus('success');
-        message.success('配置保存成功');
-      } else {
-        throw new Error(result.error || '未知错误');
-      }
-    } catch (error) {
-      setSaveStatus('error');
-      message.error('保存失败');
-    } finally {
-      setIsSaving(false);
-    }
+
+    const selectedModelInfo = VOLCENGINE_MODELS.find((model) => model.value === selectedModel);
+    await saveProviderConfig({
+      provider: 'volcengine',
+      baseUrl: VOLCENGINE_ENDPOINT,
+      apiKey: trimmedApiKey,
+      modelId: selectedModel,
+      modelName: selectedModelInfo?.label || selectedModel,
+    }, '火山引擎配置保存成功');
   };
 
   const handleKimiSave = async () => {
-    if (!kimiApiKey.trim()) {
+    const trimmedApiKey = kimiApiKey.trim();
+    if (!trimmedApiKey) {
+      setSaveStatus('error');
+      setSaveErrorMessage('API Key不能为空');
       message.error('API Key不能为空');
       return;
     }
-    setIsSaving(true);
-    try {
-      const selectedModelInfo = KIMI_MODELS.find(m => m.value === kimiSelectedModel);
-      const configData = { baseUrl: KIMI_ENDPOINT, apiKey: kimiApiKey, modelId: kimiSelectedModel, modelName: selectedModelInfo?.label || kimiSelectedModel };
-      const result = await window.electronAPI.configOpenClawAI(configData as any, '');
-      if (result.success) {
-        message.success('KIMI 配置保存成功');
-      } else {
-        throw new Error(result.error || '未知错误');
-      }
-    } catch (error) {
-      message.error('保存失败');
-    } finally {
-      setIsSaving(false);
+
+    const selectedModelInfo = KIMI_MODELS.find((model) => model.value === kimiSelectedModel);
+    await saveProviderConfig({
+      provider: 'kimi',
+      baseUrl: KIMI_ENDPOINT,
+      apiKey: trimmedApiKey,
+      modelId: kimiSelectedModel,
+      modelName: selectedModelInfo?.label || kimiSelectedModel,
+    }, 'KIMI 配置保存成功');
+  };
+
+  const handleCustomSave = async () => {
+    const trimmedBaseUrl = customBaseUrl.trim();
+    const trimmedModelId = customModelId.trim();
+    const trimmedProvider = customProvider.trim();
+    const trimmedApiKey = customApiKey.trim();
+
+    if (!trimmedProvider) {
+      setSaveStatus('error');
+      setSaveErrorMessage('Provider 不能为空');
+      message.error('请输入 Provider');
+      return;
     }
+
+    if (!isValidProvider(trimmedProvider)) {
+      setSaveStatus('error');
+      setSaveErrorMessage('Provider 格式不正确');
+      message.error('Provider 只能包含英文字母、数字、下划线和连字符，且必须以英文字母开头');
+      return;
+    }
+
+    if (!trimmedBaseUrl) {
+      setSaveStatus('error');
+      setSaveErrorMessage('API URL不能为空');
+      message.error('请输入 API URL');
+      return;
+    }
+
+    if (!isValidUrl(trimmedBaseUrl)) {
+      setSaveStatus('error');
+      setSaveErrorMessage('请输入有效的 API URL');
+      message.error('请输入有效的 API URL');
+      return;
+    }
+
+    if (!trimmedModelId) {
+      setSaveStatus('error');
+      setSaveErrorMessage('模型 ID 不能为空');
+      message.error('请输入模型 ID');
+      return;
+    }
+
+    if (!trimmedApiKey) {
+      setSaveStatus('error');
+      setSaveErrorMessage('API Key不能为空');
+      message.error('请输入 API Key');
+      return;
+    }
+
+    await saveProviderConfig({
+      provider: trimmedProvider,
+      baseUrl: trimmedBaseUrl,
+      apiKey: trimmedApiKey,
+      modelId: trimmedModelId,
+      modelName: trimmedModelId,
+    }, '自定义配置保存成功');
   };
 
   const handleTestConnection = async () => {
-    if (!apiKey.trim()) {
-      message.error('请先输入API Key');
-      return;
-    }
-    console.log('开始测试连接...', { model: selectedModel, apiKey: apiKey.substring(0, 10) + '...' });
-    setIsTesting(true);
-    setTestStatus('idle');
-    try {
-      const result = await window.electronAPI.testAIConnection({ model: selectedModel, apiKey });
-      console.log('测试连接结果:', result);
-      if (result.success) {
-        setTestStatus('success');
-        message.success('连接测试成功');
-      } else {
-        setTestStatus('error');
-        message.error('AI连接失败，请确认KEY是否正确，或者额度不足');
-      }
-    } catch (error: any) {
-      console.error('测试连接异常:', error);
-      setTestStatus('error');
-      message.error(`测试出错: ${error?.message || '未知错误'}`);
-    } finally {
-      setIsTesting(false);
-    }
+    await runConnectionTest({
+      provider: 'volcengine',
+      model: selectedModel,
+      apiKey: apiKey.trim(),
+      baseUrl: VOLCENGINE_ENDPOINT,
+    }, '请先输入 API Key', '火山引擎连接测试成功');
   };
 
   const handleKimiTest = async () => {
-    if (!kimiApiKey.trim()) {
-      message.error('请先输入 KIMI API Key');
+    await runConnectionTest({
+      provider: 'kimi',
+      model: kimiSelectedModel,
+      apiKey: kimiApiKey.trim(),
+      baseUrl: KIMI_ENDPOINT,
+    }, '请先输入 KIMI API Key', 'KIMI 连接测试成功');
+  };
+
+  const handleCustomTest = async () => {
+    const trimmedBaseUrl = customBaseUrl.trim();
+    const trimmedModelId = customModelId.trim();
+    const trimmedApiKey = customApiKey.trim();
+
+    if (!trimmedBaseUrl) {
+      message.error('请先输入 API URL');
       return;
     }
-    console.log('开始测试 KIMI 连接...', { model: kimiSelectedModel, apiKey: kimiApiKey.substring(0, 10) + '...' });
-    setIsTesting(true);
-    setTestStatus('idle');
-    try {
-      const result = await window.electronAPI.testAIConnection({ model: kimiSelectedModel, apiKey: kimiApiKey });
-      console.log('KIMI 测试连接结果:', result);
-      if (result.success) {
-        setTestStatus('success');
-        message.success('KIMI 连接测试成功');
-      } else {
-        setTestStatus('error');
-        message.error('AI连接失败，请确认KEY是否正确，或者额度不足');
-      }
-    } catch (error: any) {
-      console.error('KIMI 测试连接异常:', error);
-      setTestStatus('error');
-      message.error(`测试出错: ${error?.message || '未知错误'}`);
-    } finally {
-      setIsTesting(false);
+
+    if (!isValidUrl(trimmedBaseUrl)) {
+      message.error('请输入有效的 API URL');
+      return;
     }
+
+    if (!trimmedModelId) {
+      message.error('请先输入模型 ID');
+      return;
+    }
+
+    await runConnectionTest({
+      provider: 'custom',
+      model: trimmedModelId,
+      apiKey: trimmedApiKey,
+      baseUrl: trimmedBaseUrl,
+    }, '请先输入 API Key', '自定义连接测试成功');
   };
 
   const openVolcengineConsole = async () => {
@@ -187,20 +314,19 @@ export default function AIConfigPage() {
         const result = await window.electronAPI.getVolcengineApiKey();
         if (result.success && result.apiKey) {
           setApiKey(result.apiKey);
-          message.success('已自动获取并填充API Key');
+          message.success('已自动获取并填充 API Key');
           return;
         }
-        if (result && result.success) {
+        if (result.success) {
           message.info(result.message || '已打开火山引擎控制台，请登录后重试');
           return;
         }
-        if (result && result.success === false) {
-          message.error('自动获取失败，请重试');
-          return;
-        }
+        message.error(result.error || '自动获取失败，请重试');
+        return;
       }
+
       message.error('功能不可用');
-    } catch (error) {
+    } catch {
       message.error('获取失败');
     } finally {
       setIsGettingKey(false);
@@ -210,36 +336,29 @@ export default function AIConfigPage() {
   const fetchVolcengineApiKey = async () => {
     setIsGettingKey(true);
     try {
-      console.log('fetchVolcengineApiKey 被调用');
-      console.log('window.electronAPI:', window.electronAPI);
-      console.log('fetchVolcengineApiKey 方法:', window.electronAPI?.fetchVolcengineApiKey);
-
       if (window.electronAPI?.fetchVolcengineApiKey) {
-        console.log('开始调用 fetchVolcengineApiKey');
         const result = await window.electronAPI.fetchVolcengineApiKey();
-        console.log('fetchVolcengineApiKey 返回结果:', result);
 
         if (result.success && result.apiKey) {
           setApiKey(result.apiKey);
-          message.success('已自动获取并填充API Key');
+          message.success('已自动获取并填充 API Key');
           return;
         }
         if (result.noKeys) {
-          message.warning('没有找到已有的API Key，请使用"去火山引擎创建"创建新的KEY');
+          message.warning('没有找到已有的 API Key，请使用“去火山引擎创建”创建新的 Key');
           return;
         }
         if (result.message) {
           message.info(result.message);
           return;
         }
-        message.error('获取失败：未知错误');
-      } else {
-        console.error('fetchVolcengineApiKey 方法不存在');
-        message.error('功能不可用');
+        message.error(result.error || '获取失败：未知错误');
+        return;
       }
-    } catch (error: any) {
-      console.error('fetchVolcengineApiKey 异常:', error);
-      message.error('获取失败: ' + (error?.message || '未知错误'));
+
+      message.error('功能不可用');
+    } catch (error: unknown) {
+      message.error(`获取失败: ${getErrorMessage(error, '未知错误')}`);
     } finally {
       setIsGettingKey(false);
     }
@@ -254,113 +373,149 @@ export default function AIConfigPage() {
           message.success('已自动获取并填充 KIMI API Key');
           return;
         }
-        if (result && result.success) {
-          message.info(result.message || '已打开 KIMI 控制台,请登录后重试');
+        if (result.success) {
+          message.info(result.message || '已打开 KIMI 控制台，请登录后重试');
           return;
         }
-        if (result && result.success === false) {
-          message.error('自动获取失败，请重试');
-          return;
-        }
+        message.error(result.error || '自动获取失败，请重试');
+        return;
       }
+
       message.error('功能不可用');
-    } catch (error) {
+    } catch {
       message.error('获取失败');
     }
+  };
+
+  const renderStatusAlerts = () => (
+    <>
+      {saveStatus === 'success' && <Alert message="配置保存成功" type="success" showIcon />}
+      {saveStatus === 'error' && <Alert message={saveErrorMessage || '配置保存失败'} type="error" showIcon />}
+      {testStatus === 'success' && <Alert message="连接测试成功" type="success" showIcon />}
+      {testStatus === 'error' && <Alert message={testErrorMessage || '连接测试失败'} type="error" showIcon />}
+    </>
+  );
+
+  const handleTabChange = (key: string) => {
+    resetStatus();
+    setActiveTab(key as ProviderTabKey);
   };
 
   return (
     <div style={{ padding: '24px' }}>
       <Title level={2}>AI模型配置</Title>
-      <Text type="secondary">配置OpenClaw使用的AI大模型</Text>
+      <Text type="secondary">配置 OpenClaw 使用的 AI 大模型</Text>
 
       <Alert
-        message="警告：此功能会覆盖原有AI模型相关配置"
-        description="保存配置将修改 agents.defaults.model.primary 和 llm_providers 配置项，请确保已备份重要配置。"
+        message="警告：此功能会覆盖原有 AI 模型相关配置"
+        description="保存配置将修改 agents.defaults.model.primary 和 models.providers 配置项，请确保已备份重要配置。"
         type="warning"
         showIcon
         style={{ marginTop: 16 }}
       />
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab} style={{ marginTop: 16 }}>
+      <Tabs activeKey={activeTab} onChange={handleTabChange} style={{ marginTop: 16 }}>
         <Tabs.TabPane tab="火山引擎" key="volcengine">
-          <Card>
-            <Space direction="vertical" style={{ width: '100%' }} size="large">
-              <Alert
-                message="配置说明"
-                description="目前仅支持火山引擎 Coding Plan 配置方式"
-                type="info"
-                showIcon
-              />
-              <div>
-                <Text strong>API端点：</Text>
-                <Tag color="blue"><code>{VOLCENGINE_ENDPOINT}</code></Tag>
-              </div>
-              <div>
-                <Text strong>选择AI模型：</Text>
-                <Select style={{ width: '100%', marginTop: 8 }} value={selectedModel} onChange={setSelectedModel} size="large">
-                  {VOLCENGINE_MODELS.map(model => (
-                    <Option key={model.value} value={model.value}>
-                      <Space><span>{model.label}</span><Text type="secondary" style={{ fontSize: 12 }}>{model.desc}</Text></Space>
-                    </Option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Space style={{ marginBottom: 8 }}>
-                  <Text strong>API Key：</Text>
-                  <Button type="link" icon={<LinkOutlined />} onClick={openVolcengineConsole} size="small" loading={isGettingKey}>
-                    {isGettingKey ? '正在获取...' : '去火山引擎创建'}
-                  </Button>
-                  <Button type="link" icon={<LinkOutlined />} onClick={fetchVolcengineApiKey} size="small" loading={isGettingKey}>
-                    去火山引擎获取
-                  </Button>
-                </Space>
-                <Input.Password value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="请输入从火山引擎获取的API Key" size="large" visibilityToggle={{ visible: showApiKey, onVisibleChange: setShowApiKey }} />
-              </div>
-              {testStatus === 'success' && <Alert message="连接测试成功" type="success" showIcon />}
-              {testStatus === 'error' && <Alert message="AI连接失败，请确认KEY是否正确，或者额度不足" type="error" showIcon />}
-              <Space>
-                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={isSaving} disabled={!apiKey.trim()}>保存配置</Button>
-                <Button icon={isTesting ? <LoadingOutlined /> : <CheckCircleOutlined />} onClick={handleTestConnection} loading={isTesting} disabled={!apiKey.trim()}>{isTesting ? '测试中...' : '测试连接'}</Button>
-              </Space>
-              {saveStatus === 'success' && <Alert message="配置保存成功" type="success" showIcon />}
-              {saveStatus === 'error' && <Alert message={errorMessage || '配置保存失败'} type="error" showIcon />}
-            </Space>
-          </Card>
+          <AIProviderFormCard
+            description="目前支持火山引擎 Ark Coding 接口配置。"
+            endpoint={VOLCENGINE_ENDPOINT}
+            modelValue={selectedModel}
+            modelOptions={VOLCENGINE_MODELS}
+            onModelChange={setSelectedModel}
+            apiKeyValue={apiKey}
+            apiKeyPlaceholder="请输入从火山引擎获取的 API Key"
+            apiKeyVisible={showApiKey}
+            onApiKeyChange={setApiKey}
+            onApiKeyVisibleChange={setShowApiKey}
+            apiKeyActions={(
+              <>
+                <Button
+                  type="link"
+                  icon={<LinkOutlined />}
+                  onClick={openVolcengineConsole}
+                  size="small"
+                  loading={isGettingKey}
+                >
+                  {isGettingKey ? '正在获取...' : '去火山引擎创建'}
+                </Button>
+                <Button
+                  type="link"
+                  icon={<LinkOutlined />}
+                  onClick={fetchVolcengineApiKey}
+                  size="small"
+                  loading={isGettingKey}
+                >
+                  去火山引擎获取
+                </Button>
+              </>
+            )}
+            statusAlerts={renderStatusAlerts()}
+            onSave={handleSave}
+            onTest={handleTestConnection}
+            isSaving={isSaving}
+            isTesting={isTesting}
+            saveDisabled={!apiKey.trim()}
+            testDisabled={!apiKey.trim()}
+          />
         </Tabs.TabPane>
+
         <Tabs.TabPane tab="KIMI" key="kimi">
-          <Card>
-            <Space direction="vertical" style={{ width: '100%' }} size="large">
-              <div>
-                <Text strong>API端点：</Text>
-                <Tag color="blue"><code>{KIMI_ENDPOINT}</code></Tag>
-              </div>
-              <div>
-                <Text strong>选择AI模型：</Text>
-                <Select style={{ width: '100%', marginTop: 8 }} value={kimiSelectedModel} onChange={setKimiSelectedModel} size="large">
-                  {KIMI_MODELS.map(model => (
-                    <Option key={model.value} value={model.value}>
-                      <Space><span>{model.label}</span><Text type="secondary" style={{ fontSize: 12 }}>{model.desc}</Text></Space>
-                    </Option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Space style={{ marginBottom: 8 }}>
-                  <Text strong>API Key：</Text>
-                  <Button type="link" icon={<LinkOutlined />} onClick={openKimiConsole} size="small">去 KIMI 创建</Button>
-                </Space>
-                <Input.Password value={kimiApiKey} onChange={(e) => setKimiApiKey(e.target.value)} placeholder="请输入从 KIMI 获取的API Key" size="large" visibilityToggle={{ visible: kimiShowApiKey, onVisibleChange: setKimiShowApiKey }} />
-              </div>
-              {testStatus === 'success' && <Alert message="连接测试成功" type="success" showIcon />}
-              {testStatus === 'error' && <Alert message="AI连接失败，请确认KEY是否正确，或者额度不足" type="error" showIcon />}
-              <Space>
-                <Button type="primary" icon={<SaveOutlined />} onClick={handleKimiSave} loading={isSaving} disabled={!kimiApiKey.trim()}>保存配置</Button>
-                <Button icon={isTesting ? <LoadingOutlined /> : <CheckCircleOutlined />} onClick={handleKimiTest} loading={isTesting} disabled={!kimiApiKey.trim()}>{isTesting ? '测试中...' : '测试连接'}</Button>
-              </Space>
-            </Space>
-          </Card>
+          <AIProviderFormCard
+            endpoint={KIMI_ENDPOINT}
+            modelValue={kimiSelectedModel}
+            modelOptions={KIMI_MODELS}
+            onModelChange={setKimiSelectedModel}
+            apiKeyValue={kimiApiKey}
+            apiKeyPlaceholder="请输入从 KIMI 获取的 API Key"
+            apiKeyVisible={kimiShowApiKey}
+            onApiKeyChange={setKimiApiKey}
+            onApiKeyVisibleChange={setKimiShowApiKey}
+            apiKeyActions={(
+              <Button type="link" icon={<LinkOutlined />} onClick={openKimiConsole} size="small">
+                去 KIMI 创建
+              </Button>
+            )}
+            statusAlerts={renderStatusAlerts()}
+            onSave={handleKimiSave}
+            onTest={handleKimiTest}
+            isSaving={isSaving}
+            isTesting={isTesting}
+            saveDisabled={!kimiApiKey.trim()}
+            testDisabled={!kimiApiKey.trim()}
+          />
+        </Tabs.TabPane>
+
+        <Tabs.TabPane tab="自定义" key="custom">
+          <AIProviderFormCard
+            description="适用于兼容 OpenAI Chat Completions 的服务，请填写基础 URL（例如 https://api.example.com/v1）、模型 ID 和 API Key。"
+            endpointLabel="API URL"
+            endpoint={customBaseUrl}
+            endpointEditable
+            endpointPlaceholder="请输入兼容 OpenAI 的 API URL，例如 https://api.example.com/v1"
+            onEndpointChange={setCustomBaseUrl}
+            providerLabel="Provider"
+            providerValue={customProvider}
+            providerEditable
+            providerPlaceholder="请输入英文 Provider 名称，例如 deepseek"
+            onProviderChange={setCustomProvider}
+            modelLabel="模型 ID"
+            modelValue={customModelId}
+            modelEditable
+            modelPlaceholder="请输入模型 ID，例如 gpt-4.1-mini"
+            onModelChange={setCustomModelId}
+            apiKeyValue={customApiKey}
+            apiKeyPlaceholder="请输入自定义服务的 API Key"
+            apiKeyVisible={customShowApiKey}
+            onApiKeyChange={setCustomApiKey}
+            onApiKeyVisibleChange={setCustomShowApiKey}
+            statusAlerts={renderStatusAlerts()}
+            onSave={handleCustomSave}
+            onTest={handleCustomTest}
+            isSaving={isSaving}
+            isTesting={isTesting}
+            saveDisabled={!customProvider.trim() || !customBaseUrl.trim() || !customModelId.trim() || !customApiKey.trim()}
+            testDisabled={!customProvider.trim() || !customBaseUrl.trim() || !customModelId.trim() || !customApiKey.trim()}
+          />
         </Tabs.TabPane>
       </Tabs>
     </div>

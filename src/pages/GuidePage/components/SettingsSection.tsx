@@ -16,6 +16,7 @@ export function SettingsSection() {
         size="small"
         pagination={false}
         dataSource={settingsItems}
+        rowKey="setting"
         columns={[
           { title: '设置项', dataIndex: 'setting', key: 'setting' },
           { title: '默认值', dataIndex: 'default', key: 'default', render: (text) => <code>{text}</code> },

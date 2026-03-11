@@ -1,0 +1,189 @@
+import { useState, type ReactNode } from 'react';
+import { Alert, Button, Divider, Form, Input, Space, Tabs, Typography } from 'antd';
+import { DownloadOutlined, GlobalOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, SettingOutlined, CloudServerOutlined } from '@ant-design/icons';
+import { DownloadConfigCard } from './settings/components/DownloadConfigCard';
+import { OpenClawConfigViewer } from './settings/components/OpenClawConfigViewer';
+import { ModelManager } from './SettingsPage/components/ModelManager';
+import { ServiceManager } from './SettingsPage/components/ServiceManager';
+import { useSettingsConfig } from './settings/hooks/useSettingsConfig';
+import type { DownloadConfigKey, SettingsFormValues } from './settings/types';
+
+const { Title, Paragraph } = Typography;
+
+const TAB_META: Array<{ key: string; label: ReactNode }> = [
+  {
+    key: 'models',
+    label: (
+      <Space>
+        <RobotOutlined />
+        模型设置
+      </Space>
+    ),
+  },
+  {
+    key: 'view-config',
+    label: (
+      <Space>
+        <SettingOutlined />
+        查看配置
+      </Space>
+    ),
+  },
+  {
+    key: 'service',
+    label: (
+      <Space>
+        <CloudServerOutlined />
+        服务管理
+      </Space>
+    ),
+  },
+  {
+    key: 'nodejs',
+    label: (
+      <Space>
+        <DownloadOutlined />
+        Node.js
+      </Space>
+    ),
+  },
+  {
+    key: 'git',
+    label: (
+      <Space>
+        <GlobalOutlined />
+        Git
+      </Space>
+    ),
+  },
+  {
+    key: 'openclaw',
+    label: (
+      <Space>
+        <SettingOutlined />
+        OpenClaw
+      </Space>
+    ),
+  },
+];
+
+export default function SettingsPage() {
+  const [form] = Form.useForm<SettingsFormValues>();
+  const [activeTab, setActiveTab] = useState('models');
+  const {
+    config,
+    hasChanges,
+    configPath,
+    configContent,
+    backups,
+    setConfigContent,
+    handleValuesChange,
+    handleSave,
+    handleReset,
+    handleSaveConfigContent,
+    handleRestoreBackup,
+    loadConfigAndBackups,
+    openUrl,
+  } = useSettingsConfig(form);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    if (key === 'view-config') {
+      void loadConfigAndBackups();
+    }
+  };
+
+  const renderConfigCard = (configKey: DownloadConfigKey) => (
+    <DownloadConfigCard
+      configKey={configKey}
+      data={config.downloads[configKey]}
+      form={form}
+      onOpenUrl={openUrl}
+      extraContent={configKey === 'openclaw' ? (
+        <>
+          <Form.Item
+            name="openclaw_configPath"
+            label="OpenClaw 配置文件路径"
+          >
+            <Input prefix={<SettingOutlined />} placeholder="请输入配置文件路径" />
+          </Form.Item>
+          <Divider />
+        </>
+      ) : null}
+    />
+  );
+
+  const tabItems = TAB_META.map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    children: tab.key === 'view-config'
+      ? (
+        <>
+          <OpenClawConfigViewer
+            configPath={configPath}
+            configContent={configContent}
+            backups={backups}
+            onConfigContentChange={setConfigContent}
+            onSave={handleSaveConfigContent}
+            onRefresh={loadConfigAndBackups}
+            onRestore={handleRestoreBackup}
+          />
+          <Divider />
+          <Space size="middle">
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={handleSave}
+              disabled={!hasChanges}
+            >
+              保存配置
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleReset}
+            >
+              恢复默认
+            </Button>
+          </Space>
+        </>
+      )
+      : tab.key === 'models'
+        ? <ModelManager />
+        : tab.key === 'service'
+          ? <ServiceManager />
+          : renderConfigCard(tab.key as DownloadConfigKey),
+  }));
+
+  return (
+    <div style={{ padding: 24 }}>
+      <Title level={3}>
+        <SettingOutlined /> 下载配置设置
+      </Title>
+      <Paragraph type="secondary">
+        管理Node.js、Git和OpenClaw的下载地址和镜像源配置。修改后点击保存即可生效。
+      </Paragraph>
+
+      {hasChanges && (
+        <Alert
+          message="配置已修改，请记得保存"
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          action={(
+            <Button size="small" type="primary" onClick={handleSave}>
+              立即保存
+            </Button>
+          )}
+        />
+      )}
+
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={handleValuesChange}
+      >
+        <Tabs activeKey={activeTab} onChange={handleTabChange} type="card" items={tabItems} />
+      </Form>
+    </div>
+  );
+}

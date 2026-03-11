@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Typography, Space, Alert, Switch, Tooltip, Row, Col } from 'antd';
-import { CheckOutlined } from '@ant-design/icons';
+import { Card, Typography, Space, Alert, Switch, Tooltip, Row, Col, Button } from 'antd';
+import { CheckOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useAppStore } from '../../store';
 import { useInstall } from './hooks/useInstall';
 import { EnvStatus } from './components/EnvStatus';
@@ -11,81 +11,89 @@ import { LogPanel } from './components/LogPanel';
 const { Title, Text } = Typography;
 
 export default function InstallPage() {
-  const { logs, clearLogs } = useAppStore();
-  const [isDebugMode, setIsDebugMode] = useState(false);
+  const { logs, clearLogs, addLog } = useAppStore();
+  const [enableGitProxy, setEnableGitProxy] = useState(false);
   const {
     isInstalling,
     currentStepIndex,
-    isCheckingUpgrade,
     downloadProgress,
-    isInitConfig,
     systemStatus,
     installSteps,
     isAllInstalled,
     checkEnvironment,
     startInstall,
-    checkUpgrade,
     resetAllStatus,
     initConfigFile,
     downloadNodeManually,
     downloadGitManually,
     installOpenClawManually,
-  } = useInstall(isDebugMode);
+  } = useInstall(enableGitProxy);
 
   useEffect(() => {
     checkEnvironment();
-    // 检查 DEBUG 模式
-    const checkDebug = async () => {
+    
+    // 检查是否需要继续安装（重启后）
+    const checkContinue = async () => {
       try {
-        const result = await window.electronAPI?.getDebugStatus?.();
-        if (result) {
-          setIsDebugMode(result.enabled);
+        const result = await window.electronAPI.checkContinueInstall();
+        if (result.shouldContinue) {
+          // 清除标志
+          await window.electronAPI.clearContinueInstall();
+          // 提示用户
+          addLog('检测到上次安装未完成，准备继续安装...');
+          // 延迟一下让用户看到提示
+          setTimeout(() => {
+            startInstall();
+          }, 1500);
         }
       } catch (e) {
-        console.log('DEBUG 模式检查失败:', e);
+        console.error('Check continue install error:', e);
       }
     };
-    checkDebug();
+    checkContinue();
   }, []);
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <Title level={2}>一键安装 OpenClaw</Title>
-          <Text type="secondary">
+          <Title level={3} style={{ marginBottom: 4 }}>一键安装 OpenClaw</Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
             自动检测并安装Node.js、Git等依赖环境，然后安装OpenClaw
           </Text>
         </div>
-        {isDebugMode && (
-          <Tooltip title="开启后不会真正安装软件，仅模拟安装流程">
+        <Space>
+          <Tooltip title="开启后将Git SSH地址映射为HTTPS，解决部分网络环境下的GitHub访问问题">
             <Switch
-              checked={isDebugMode}
-              onChange={setIsDebugMode}
-              checkedChildren="模拟模式"
-              unCheckedChildren="真实模式"
+              checked={enableGitProxy}
+              onChange={setEnableGitProxy}
+              checkedChildren="Git映射开启"
+              unCheckedChildren="Git映射关闭"
             />
           </Tooltip>
-        )}
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlayCircleOutlined />}
+            onClick={startInstall}
+            loading={isInstalling}
+            disabled={isInstalling}
+          >
+            {isInstalling ? '安装中...' : (isAllInstalled() ? '重新安装' : '开始一键安装')}
+          </Button>
+        </Space>
       </div>
       
-      <Card style={{ marginTop: 24 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+      <Card style={{ marginTop: 16 }} size="small">
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Text strong>当前环境状态：</Text>
-            <Space style={{ marginLeft: 16 }}>
+            <Text strong style={{ fontSize: 13 }}>当前环境状态：</Text>
+            <Space style={{ marginLeft: 12 }} size="small">
               <EnvStatus systemStatus={systemStatus} />
             </Space>
           </div>
           
-          {isDebugMode && (
-            <Alert
-              message="🧪 模拟模式已开启"
-              description="不会真正安装软件，仅模拟安装流程用于测试UI和流程"
-              type="warning"
-              showIcon
-            />
-          )}
+
 
           {isAllInstalled() && (
             <Alert
@@ -94,10 +102,11 @@ export default function InstallPage() {
               type="success"
               showIcon
               icon={<CheckOutlined />}
+              style={{ padding: '8px 12px' }}
             />
           )}
 
-          <Row gutter={24}>
+          <Row gutter={16}>
             <Col span={14}>
               <InstallSteps
                 installSteps={installSteps}
@@ -119,12 +128,7 @@ export default function InstallPage() {
 
           <ActionButtons
             isInstalling={isInstalling}
-            isCheckingUpgrade={isCheckingUpgrade}
-            isInitConfig={isInitConfig}
-            isAllInstalled={isAllInstalled()}
-            onStartInstall={startInstall}
             onCheckEnvironment={checkEnvironment}
-            onCheckUpgrade={checkUpgrade}
             onInitConfig={initConfigFile}
             onReset={resetAllStatus}
           />

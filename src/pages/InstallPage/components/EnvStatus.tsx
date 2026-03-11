@@ -8,6 +8,9 @@ interface EnvStatusProps {
 export function EnvStatus({ systemStatus }: EnvStatusProps) {
   return (
     <Space>
+      <Tag color={systemStatus.vcredist?.installed ? 'green' : 'orange'}>
+        VC++ {systemStatus.vcredist?.installed ? '已安装' : '未检测'}
+      </Tag>
       <Tag color={systemStatus.node.installed ? (systemStatus.node.needUpdate ? 'orange' : 'green') : 'red'}>
         Node.js {systemStatus.node.installed ? `v${systemStatus.node.version}` : '未安装'}
       </Tag>

@@ -64,6 +64,21 @@ export function InstallSteps({
             {step.id === 'start-gateway' && systemStatus.openclaw.installed && (
               <Tag color="processing">启动中</Tag>
             )}
+            {step.id === 'install-node' && (step.status === 'error' || step.status === 'pending') && (
+              <Button size="small" icon={<DownloadOutlined />} onClick={onDownloadNode}>
+                手动下载
+              </Button>
+            )}
+            {step.id === 'install-git' && (step.status === 'error' || step.status === 'pending') && (
+              <Button size="small" icon={<DownloadOutlined />} onClick={onDownloadGit}>
+                手动下载
+              </Button>
+            )}
+            {step.id === 'install-openclaw' && (step.status === 'error' || step.status === 'pending') && (
+              <Button size="small" icon={<DownloadOutlined />} onClick={onInstallOpenClaw}>
+                手动安装
+              </Button>
+            )}
             {getStepIcon(step.status)}
           </Space>
         ),
@@ -77,6 +92,11 @@ export function InstallSteps({
                 </Text>
               </div>
             )}
+            {step.id === 'install-vcredist' && downloadProgress.vcredist !== undefined && downloadProgress.vcredist < 100 && (
+              <div style={{ marginTop: 8, width: 200 }}>
+                <Progress percent={downloadProgress.vcredist} size="small" status="active" />
+              </div>
+            )}
             {step.id === 'install-node' && downloadProgress.node !== undefined && downloadProgress.node < 100 && (
               <div style={{ marginTop: 8, width: 200 }}>
                 <Progress percent={downloadProgress.node} size="small" status="active" />
@@ -85,27 +105,6 @@ export function InstallSteps({
             {step.id === 'install-git' && downloadProgress.git !== undefined && downloadProgress.git < 100 && (
               <div style={{ marginTop: 8, width: 200 }}>
                 <Progress percent={downloadProgress.git} size="small" status="active" />
-              </div>
-            )}
-            {step.id === 'install-node' && (step.status === 'error' || step.status === 'pending') && (
-              <div style={{ marginTop: 8 }}>
-                <Button size="small" icon={<DownloadOutlined />} onClick={onDownloadNode}>
-                  手动下载
-                </Button>
-              </div>
-            )}
-            {step.id === 'install-git' && (step.status === 'error' || step.status === 'pending') && (
-              <div style={{ marginTop: 8 }}>
-                <Button size="small" icon={<DownloadOutlined />} onClick={onDownloadGit}>
-                  手动下载
-                </Button>
-              </div>
-            )}
-            {step.id === 'install-openclaw' && (step.status === 'error' || step.status === 'pending') && (
-              <div style={{ marginTop: 8 }}>
-                <Button size="small" icon={<DownloadOutlined />} onClick={onInstallOpenClaw}>
-                  手动安装
-                </Button>
               </div>
             )}
           </div>

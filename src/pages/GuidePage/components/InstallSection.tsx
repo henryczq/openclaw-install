@@ -1,4 +1,4 @@
-import { Card, Typography, Collapse, Tag, Table } from 'antd';
+import { Card, Typography, Collapse, Tag, Alert, Space } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { installSteps } from '../data/guideData';
 
@@ -9,29 +9,29 @@ export function InstallSection() {
   return (
     <Card id="install" title={<><DownloadOutlined /> 一键安装</>}>
       <Paragraph>
-        一键安装功能自动完成 OpenClaw 运行环境的检测、下载、安装和配置。
+        一键安装会按当前实际流程完成环境检测、依赖安装、OpenClaw 安装和默认配置初始化。
       </Paragraph>
+
+      <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="安装窗口说明"
+          description="OpenClaw 安装阶段会启动独立 PowerShell 窗口；如果窗口仍在运行，请等待窗口内命令完成，再回到主界面继续观察结果。"
+        />
+        <Alert
+          type="warning"
+          showIcon
+          message="建议做法"
+          description="如果 Git 安装后页面提示需要重启应用，请按提示重启再继续；这样能避免 PATH 尚未刷新导致的后续失败。"
+        />
+      </Space>
 
       <Collapse>
         {installSteps.map(step => (
           <Panel header={step.title} key={step.key}>
             <Text strong>触发条件：</Text>
             <Paragraph>{step.trigger}</Paragraph>
-            
-            {step.commands && (
-              <>
-                <Text strong>执行命令：</Text>
-                <Table
-                  size="small"
-                  pagination={false}
-                  dataSource={step.commands}
-                  columns={[
-                    { title: '命令', dataIndex: 'cmd', key: 'cmd', render: (text) => <code>{text}</code> },
-                    { title: '说明', dataIndex: 'desc', key: 'desc' },
-                  ]}
-                />
-              </>
-            )}
             
             {step.steps && (
               <>

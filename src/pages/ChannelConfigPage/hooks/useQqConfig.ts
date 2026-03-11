@@ -1,6 +1,13 @@
 import { useState, useCallback } from 'react';
 import { App } from 'antd';
 import { useAppStore } from '../../../store';
+import {
+  getQqRpaSteps,
+  updateAllQqProgressItems,
+  updateQqProgressItems,
+  type QqAction,
+  type QqProgressItem
+} from './qqConfigProgress';
 
 export function useQqConfig() {
   const { qqConfig, setQqConfig, addLog: storeAddLog } = useAppStore();
@@ -10,96 +17,63 @@ export function useQqConfig() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pluginInstalled, setPluginInstalled] = useState(false);
   const [installLogs, setInstallLogs] = useState<string[]>([]);
-  const [rpaProgress, setRpaProgress] = useState<{step: string, status: 'pending'|'running'|'success'|'error', message?: string}[]>([]);
+  const [rpaProgress, setRpaProgress] = useState<QqProgressItem[]>([]);
 
-  const notifySuccess = (text: string) => {
+  const notifySuccess = useCallback((text: string) => {
     messageApi?.success(text);
-  };
+  }, [messageApi]);
 
-  const notifyError = (text: string) => {
+  const notifyError = useCallback((text: string) => {
     messageApi?.error(text);
-  };
+  }, [messageApi]);
 
-  const addLog = (log: string) => {
+  const addLog = useCallback((log: string) => {
     setInstallLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${log}`]);
     storeAddLog(log);
-  };
+  }, [storeAddLog]);
 
-  const getRpaSteps = useCallback((action: string | null) => {
-    if (action === 'check-plugin') {
-      return [
-        { step: '检查QQ插件', status: 'pending' as const },
-      ];
+  const wait = useCallback((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)), []);
+
+  const getErrorMessage = useCallback((error: unknown) => (
+    error instanceof Error ? error.message : String(error)
+  ), []);
+
+  const startAction = useCallback((action: QqAction, logMessage: string, options?: { resetLogs?: boolean }) => {
+    setIsProcessing(true);
+    if (options?.resetLogs) {
+      setInstallLogs([]);
     }
-    if (action === 'install-plugin') {
-      return [
-        { step: '执行安装命令', status: 'pending' as const },
-        { step: '等待安装完成', status: 'pending' as const }
-      ];
-    }
-    if (action === 'open-console') {
-      return [
-        { step: '打开QQ机器人管理页面', status: 'pending' as const },
-      ];
-    }
-    if (action === 'create-robot') {
-      return [
-        { step: '点击创建机器人', status: 'pending' as const },
-        { step: '等待创建完成', status: 'pending' as const }
-      ];
-    }
-    if (action === 'get-credentials') {
-      return [
-        { step: '获取AppID', status: 'pending' as const },
-        { step: '获取AppSecret', status: 'pending' as const }
-      ];
-    }
-    if (action === 'bind-channel') {
-      return [
-        { step: '执行绑定命令', status: 'pending' as const },
-      ];
-    }
-    if (action === 'restart-service') {
-      return [
-        { step: '重启OpenClaw服务', status: 'pending' as const },
-      ];
-    }
-    return [];
+    setRpaProgress(getQqRpaSteps(action));
+    addLog(logMessage);
+  }, [addLog]);
+
+  const updateProgress = useCallback((indexes: number | number[], patch: Partial<QqProgressItem>) => {
+    setRpaProgress((prev) => updateQqProgressItems(prev, indexes, patch));
+  }, []);
+
+  const updateAllProgress = useCallback((patch: Partial<QqProgressItem>) => {
+    setRpaProgress((prev) => updateAllQqProgressItems(prev, patch));
   }, []);
 
   const checkPlugin = async () => {
-    setIsProcessing(true);
-    setRpaProgress(getRpaSteps('check-plugin'));
-    addLog('正在检查QQ插件...');
+    startAction('check-plugin', '正在检查QQ插件...');
 
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
 
       const result = await window.electronAPI.checkQqPlugin();
       console.log('检查插件结果:', result);
 
       if (result.installed) {
         setPluginInstalled(true);
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success', message: '插件已安装' };
-          return next;
-        });
+        updateProgress(0, { status: 'success', message: '插件已安装' });
         addLog('QQ插件已安装');
         addLog(`插件列表: ${result.output}`);
         notifySuccess('QQ插件已安装');
         setCurrentStep(2);
       } else {
         setPluginInstalled(false);
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'error', message: '插件未安装' };
-          return next;
-        });
+        updateProgress(0, { status: 'error', message: '插件未安装' });
         addLog('QQ插件未安装，需要先安装插件');
         if (result.output) {
           addLog(`插件列表: ${result.output}`);
@@ -107,14 +81,10 @@ export function useQqConfig() {
         notifyError('QQ插件未安装，请先安装插件');
         setCurrentStep(1);
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       console.error('检查插件异常:', error);
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'error', message: errorMsg };
-        return next;
-      });
+      updateProgress(0, { status: 'error', message: errorMsg });
       addLog(`检查插件失败: ${errorMsg}`);
       notifyError(`检查插件失败: ${errorMsg}`);
     } finally {
@@ -123,59 +93,37 @@ export function useQqConfig() {
   };
 
   const installPlugin = async () => {
-    setIsProcessing(true);
-    setInstallLogs([]);
-    setRpaProgress(getRpaSteps('install-plugin'));
-    addLog('开始安装QQ插件...');
+    startAction('install-plugin', '开始安装QQ插件...', { resetLogs: true });
     
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
       
       const result = await window.electronAPI.installQqPlugin();
       
       if (result.success) {
         setPluginInstalled(true);
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success' };
-          if (next[1]) next[1] = { ...next[1], status: 'success' };
-          return next;
-        });
+        updateProgress([0, 1], { status: 'success' });
         addLog('QQ插件安装成功');
         notifySuccess('QQ插件安装成功');
         setCurrentStep(2);
       } else {
         throw new Error(result.error || '安装失败');
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       addLog(`安装失败: ${errorMsg}`);
       notifyError(`安装失败: ${errorMsg}`);
-      setRpaProgress(prev => {
-        const next = [...prev];
-        next.forEach(item => item.status = 'error');
-        return next;
-      });
+      updateAllProgress({ status: 'error', message: errorMsg });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const openConsole = async () => {
-    setIsProcessing(true);
-    setRpaProgress(getRpaSteps('open-console'));
-    addLog('正在打开QQ机器人管理页面...');
+    startAction('open-console', '正在打开QQ机器人管理页面...');
 
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
 
       console.log('[openConsole] 调用 openQqConsole...');
       const result = await window.electronAPI.openQqConsole();
@@ -183,18 +131,14 @@ export function useQqConfig() {
 
       if (result.success) {
         console.log('[openConsole] 页面打开成功');
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success' };
-          return next;
-        });
+        updateProgress(0, { status: 'success' });
         addLog('已打开QQ机器人管理页面');
         console.log('[openConsole] 页面已打开，准备等待5秒后检查登录状态');
         
         // 等待5秒后检查登录状态
         addLog('等待5秒后检查登录状态...');
         console.log('[openConsole] 开始等待5秒...');
-        await new Promise(r => setTimeout(r, 5000));
+        await wait(5000);
         console.log('[openConsole] 5秒等待结束');
         
         console.log('[openConsole] 开始检查登录状态');
@@ -235,7 +179,7 @@ export function useQqConfig() {
         setIsProcessing(false);
         
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorMsg = getErrorMessage(error);
       addLog(`打开页面失败: ${errorMsg}`);
       notifyError('打开页面失败');
       setIsProcessing(false);
@@ -243,39 +187,28 @@ export function useQqConfig() {
   };
 
   const createRobot = async () => {
-    setIsProcessing(true);
-    setRpaProgress(getRpaSteps('create-robot'));
-    addLog('正在创建QQ机器人...');
+    startAction('create-robot', '正在创建QQ机器人...');
     
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
       
       const result = await window.electronAPI.qqCreateRobot();
       
       if (result.success) {
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success' };
-          if (next[1]) next[1] = { ...next[1], status: 'success' };
-          return next;
-        });
+        updateProgress([0, 1], { status: 'success' });
         addLog('QQ机器人创建成功');
         notifySuccess('QQ机器人创建成功');
         setCurrentStep(4);
         
         // 等待3秒后自动继续执行第5步：获取凭证
         addLog('等待3秒后自动继续：获取凭证...');
-        await new Promise(r => setTimeout(r, 3000));
+        await wait(3000);
         await getCredentials();
       } else {
         throw new Error(result.error || '创建失败');
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       addLog(`创建失败: ${errorMsg}`);
       notifyError(`创建失败: ${errorMsg}`);
     } finally {
@@ -284,16 +217,10 @@ export function useQqConfig() {
   };
 
   const getCredentials = async () => {
-    setIsProcessing(true);
-    setRpaProgress(getRpaSteps('get-credentials'));
-    addLog('正在获取AppID和AppSecret...');
+    startAction('get-credentials', '正在获取AppID和AppSecret...');
     
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
       
       const result = await window.electronAPI.qqGetCredentials();
       
@@ -303,26 +230,21 @@ export function useQqConfig() {
           appId,
           appSecret
         });
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success' };
-          if (next[1]) next[1] = { ...next[1], status: 'success' };
-          return next;
-        });
+        updateProgress([0, 1], { status: 'success' });
         addLog(`获取凭证成功: AppID=${appId}`);
         notifySuccess('获取凭证成功');
         setCurrentStep(5);
         
         // 等待3秒后自动继续执行第6步：绑定机器人
         addLog('等待3秒后自动继续：绑定机器人...');
-        await new Promise(r => setTimeout(r, 3000));
+        await wait(3000);
         // 直接传入获取到的凭证，避免状态异步问题
         await bindChannelWithCredentials(appId, appSecret);
       } else {
         throw new Error(result.error || '获取失败');
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       addLog(`获取凭证失败: ${errorMsg}`);
       notifyError(`获取凭证失败: ${errorMsg}`);
     } finally {
@@ -331,38 +253,28 @@ export function useQqConfig() {
   };
 
   const bindChannelWithCredentials = async (appId: string, appSecret: string) => {
-    setIsProcessing(true);
-    setRpaProgress(getRpaSteps('bind-channel'));
-    addLog('正在绑定QQ机器人...');
+    startAction('bind-channel', '正在绑定QQ机器人...');
     
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
       
       const result = await window.electronAPI.configQqChannel(appId, appSecret);
       
       if (result.success) {
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success' };
-          return next;
-        });
+        updateProgress(0, { status: 'success' });
         addLog('QQ机器人绑定成功');
         notifySuccess('QQ机器人绑定成功');
         setCurrentStep(6);
         
         // 等待3秒后自动继续执行第7步：重启服务
         addLog('等待3秒后自动继续：重启服务...');
-        await new Promise(r => setTimeout(r, 3000));
+        await wait(3000);
         await restartService();
       } else {
         throw new Error(result.error || '绑定失败');
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       addLog(`绑定失败: ${errorMsg}`);
       notifyError(`绑定失败: ${errorMsg}`);
     } finally {
@@ -379,33 +291,23 @@ export function useQqConfig() {
   };
 
   const restartService = async () => {
-    setIsProcessing(true);
-    setRpaProgress(getRpaSteps('restart-service'));
-    addLog('正在重启OpenClaw服务...');
+    startAction('restart-service', '正在重启OpenClaw服务...');
     
     try {
-      setRpaProgress(prev => {
-        const next = [...prev];
-        if (next[0]) next[0] = { ...next[0], status: 'running' };
-        return next;
-      });
+      updateProgress(0, { status: 'running' });
       
       const result = await window.electronAPI.restartOpenClaw();
       
       if (result.success) {
-        setRpaProgress(prev => {
-          const next = [...prev];
-          if (next[0]) next[0] = { ...next[0], status: 'success' };
-          return next;
-        });
+        updateProgress(0, { status: 'success' });
         addLog('OpenClaw服务重启成功');
         notifySuccess('OpenClaw服务重启成功');
         setCurrentStep(7);
       } else {
         throw new Error(result.error || '重启失败');
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       addLog(`重启失败: ${errorMsg}`);
       notifyError(`重启失败: ${errorMsg}`);
     } finally {
@@ -441,73 +343,9 @@ export function useQqConfig() {
     }
   };
 
-  const runAllSteps = async () => {
+  const ensurePluginInstalled = async () => {
     setIsProcessing(true);
     setInstallLogs([]);
-    
-    addLog('=== 开始一键配置 ===');
-    
-    // 步骤1: 检查插件
-    addLog('正在检查QQ插件...');
-    try {
-      const result = await window.electronAPI.checkQqPlugin();
-      console.log('检查插件结果:', result);
-      
-      if (result.installed) {
-        setPluginInstalled(true);
-        addLog('✅ QQ插件已安装，跳过安装步骤');
-        setCurrentStep(2);
-      } else {
-        setPluginInstalled(false);
-        addLog('❌ QQ插件未安装，开始安装...');
-        
-        // 步骤2: 安装插件
-        const installResult = await window.electronAPI.installQqPlugin();
-        if (installResult.success) {
-          setPluginInstalled(true);
-          addLog('✅ QQ插件安装成功');
-          setCurrentStep(2);
-        } else {
-          addLog(`❌ 安装失败: ${installResult.error}`);
-          notifyError(`安装失败: ${installResult.error}`);
-          setIsProcessing(false);
-          return;
-        }
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      addLog(`❌ 检查插件失败: ${errorMsg}`);
-      notifyError('检查插件失败');
-      setIsProcessing(false);
-      return;
-    }
-    
-    // 步骤3: 打开管理页面
-    addLog('正在打开QQ机器人管理页面...');
-    try {
-      const result = await window.electronAPI.openQqConsole();
-      if (result.success) {
-        addLog('✅ 已打开管理页面');
-        // notifySuccess('请扫码登录后点击"下一步"继续');
-        setCurrentStep(3);
-      } else {
-        throw new Error(result.error || '打开失败');
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      addLog(`❌ 打开页面失败: ${errorMsg}`);
-      notifyError('打开页面失败');
-    }
-    
-    setIsProcessing(false);
-  };
-
-  void runAllSteps;
-
-  const runAllStepsV2 = async () => {
-    setIsProcessing(true);
-    setInstallLogs([]);
-
     addLog('=== 开始一键配置 ===');
     addLog('正在检查QQ插件...');
 
@@ -531,18 +369,25 @@ export function useQqConfig() {
         } else {
           addLog(`❌ 安装失败: ${installResult.error}`);
           notifyError(`安装失败: ${installResult.error}`);
-          setIsProcessing(false);
-          return;
+          return false;
         }
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      return true;
+    } catch (error: unknown) {
+      const errorMsg = getErrorMessage(error);
       addLog(`❌ 检查插件失败: ${errorMsg}`);
       notifyError(`检查插件失败: ${errorMsg}`);
+      return false;
+    } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const runAllSteps = async () => {
+    const pluginReady = await ensurePluginInstalled();
+    if (!pluginReady) {
       return;
     }
-
     await openConsole();
   };
 
@@ -556,6 +401,6 @@ export function useQqConfig() {
     qqConfig,
     setQqConfig,
     handleQqAction,
-    runAllSteps: runAllStepsV2,
+    runAllSteps,
   };
 }

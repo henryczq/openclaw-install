@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkNpm: () => ipcRenderer.invoke('check-npm'),
   checkGit: () => ipcRenderer.invoke('check-git'),
   checkOpenClaw: () => ipcRenderer.invoke('check-openclaw'),
+  checkVCRedist: () => ipcRenderer.invoke('check-vcredist'),
 
   // 配置
   setNpmRegistry: () => ipcRenderer.invoke('set-npm-registry'),
@@ -74,7 +75,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
 
   // OpenClaw操作
-  installOpenClaw: () => ipcRenderer.invoke('install-openclaw'),
+  installOpenClaw: (options) => ipcRenderer.invoke('install-openclaw', options),
   openclawOnboard: () => ipcRenderer.invoke('openclaw-onboard'),
   saveOpenClawConfig: (config) => ipcRenderer.invoke('save-openclaw-config', config),
   startOpenClawGateway: () => ipcRenderer.invoke('start-openclaw-gateway'),
@@ -88,6 +89,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setConfigPath: (path) => ipcRenderer.invoke('set-config-path', path),
   readOpenClawConfig: () => ipcRenderer.invoke('read-openclaw-config'),
   testAIConnection: (params) => ipcRenderer.invoke('test-ai-connection', params),
+  getAIConfig: () => ipcRenderer.invoke('get-ai-config'),
+  saveAIConfig: (params) => ipcRenderer.invoke('save-ai-config', params),
   listBackups: () => ipcRenderer.invoke('list-backups'),
   restoreBackup: (backupPath) => ipcRenderer.invoke('restore-backup', backupPath),
   saveRawConfig: (content) => ipcRenderer.invoke('save-raw-config', content),
@@ -128,8 +131,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   configQqChannel: (appId, appSecret) => ipcRenderer.invoke('config-qq-channel', appId, appSecret),
   restartOpenClaw: () => ipcRenderer.invoke('restart-openclaw'),
   uninstallOpenClaw: () => ipcRenderer.invoke('uninstall-openclaw'),
-  restartApp: () => ipcRenderer.invoke('restart-app'),
+  detectOpenClawResidue: () => ipcRenderer.invoke('detect-openclaw-residue'),
+  cleanupOpenClawResidue: () => ipcRenderer.invoke('cleanup-openclaw-residue'),
+  removeOpenClawResidueItem: (selector) => ipcRenderer.invoke('remove-openclaw-residue-item', selector),
+  restartApp: (options) => ipcRenderer.invoke('restart-app', options),
+  checkContinueInstall: () => ipcRenderer.invoke('check-continue-install'),
+  clearContinueInstall: () => ipcRenderer.invoke('clear-continue-install'),
   getDebugStatus: () => ipcRenderer.invoke('get-debug-status'),
   setDebugStatus: (enabled) => ipcRenderer.invoke('set-debug-status', enabled),
   toggleDebug: () => ipcRenderer.invoke('toggle-debug'),
+  
+  // 模型管理
+  listProviders: () => ipcRenderer.invoke('list-providers'),
+  listModels: () => ipcRenderer.invoke('list-models'),
+  getDefaultModel: () => ipcRenderer.invoke('get-default-model'),
+  setDefaultModel: (providerId, modelId) => ipcRenderer.invoke('set-default-model', providerId, modelId),
+  deleteModel: (providerId, modelId, autoDeleteProvider) => ipcRenderer.invoke('delete-model', providerId, modelId, autoDeleteProvider),
+  deleteProvider: (providerId) => ipcRenderer.invoke('delete-provider', providerId),
+  updateModel: (params) => ipcRenderer.invoke('update-model', params),
 });
