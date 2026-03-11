@@ -9,7 +9,7 @@ export function AIConfigSection() {
   return (
     <Card id="ai-config" title={<><RobotOutlined /> AI配置</>} style={{ marginTop: 24 }}>
       <Paragraph>
-        AI配置页面用于设置 OpenClaw 使用的大语言模型和 API 密钥。
+        AI 配置页按提供商分为火山引擎、KIMI、自定义三个页签，支持保存配置和测试连接。
       </Paragraph>
 
       <Collapse>
@@ -59,9 +59,9 @@ export function AIConfigSection() {
       </Collapse>
 
       <Alert
-        message="配置说明"
-        description="支持火山引擎、KIMI，以及兼容 OpenAI Chat Completions 的自定义提供商，配置会自动保存到 openclaw.json 文件中。"
-        type="info"
+        message="配置提醒"
+        description="保存 AI 配置会覆盖 OpenClaw 当前默认模型与相关 provider 配置。正式修改前，建议先在“设置 > 查看配置”中备份现有内容。"
+        type="warning"
         showIcon
         style={{ marginTop: 16 }}
       />

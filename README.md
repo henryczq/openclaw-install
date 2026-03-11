@@ -11,9 +11,17 @@
 - 渠道配置：支持飞书、QQ 等渠道接入信息填写与引导
 
 
-![alt text](image.png)
-![alt text](image-1.png)
-![alt text](image-2.png)
+### 2026.03.11 新增功能
+新增模型读取和配置功能，用户可以在程序中直接读取和配置AI模型，而不需要手动修改配置文件。
+![模型配置功能](docs/assets/image-3.png)
+
+新增服务管理功能，用户可以在程序中直接启动、停止、重启OpenClaw服务，而不需要手动操作命令行。
+![服务管理功能](docs/assets/image-4.png)
+
+### 2026.03.10 功能：
+![功能截图1](docs/assets/image.png)
+![功能截图2](docs/assets/image-1.png)
+![功能截图3](docs/assets/image-2.png)
 
 ## 注意
 

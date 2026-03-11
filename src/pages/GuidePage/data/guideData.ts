@@ -1,4 +1,62 @@
-export const installSteps = [
+export interface GuideCommandItem {
+  cmd: string;
+  desc: string;
+}
+
+export interface GuideActionItem {
+  action: string;
+  detail: string;
+}
+
+export interface GuidePhaseItem {
+  name: string;
+  detail: string;
+}
+
+export interface InstallGuideStep {
+  key: string;
+  title: string;
+  trigger: string;
+  commands?: GuideCommandItem[];
+  steps?: GuideActionItem[];
+  logic?: string;
+}
+
+export interface AIConfigGuideStep {
+  key: string;
+  title: string;
+  models?: Array<{ name: string; provider: string; endpoint: string }>;
+  auto?: string[];
+  manual?: string[];
+}
+
+export interface ChannelGuideStep {
+  key: string;
+  title: string;
+  trigger: string;
+  commands?: GuideCommandItem[];
+  phases?: GuidePhaseItem[];
+}
+
+export interface SettingsGuideItem {
+  setting: string;
+  default: string;
+  desc: string;
+}
+
+export interface UninstallGuideStep {
+  step: string;
+  command: string;
+  desc: string;
+}
+
+export interface GuideAnchorItem {
+  key: string;
+  href: string;
+  title: string;
+}
+
+export const installSteps: InstallGuideStep[] = [
   {
     key: 'precheck',
     title: '1.1 安装前检查',
@@ -68,7 +126,7 @@ export const installSteps = [
   },
 ];
 
-export const aiConfigSteps = [
+export const aiConfigSteps: AIConfigGuideStep[] = [
   {
     key: 'providers',
     title: '2.1 支持的配置页签',
@@ -102,7 +160,7 @@ export const aiConfigSteps = [
   },
 ];
 
-export const channelSteps = [
+export const channelSteps: ChannelGuideStep[] = [
   {
     key: 'channel-status',
     title: '3.1 页面现状',
@@ -137,7 +195,7 @@ export const channelSteps = [
   },
 ];
 
-export const settingsItems = [
+export const settingsItems: SettingsGuideItem[] = [
   { setting: '模型设置', default: '模型与 Provider 管理', desc: '管理 OpenClaw 中的模型、Provider、默认模型，以及自定义模型项。' },
   { setting: '服务管理', default: '网关端口 18789', desc: '查看 OpenClaw 版本与网关状态，支持启动、停止、重启和打开本地 Web 界面。' },
   { setting: '查看配置', default: '当前配置文件内容', desc: '查看、编辑、保存 OpenClaw 配置，并支持刷新内容和恢复备份。' },
@@ -146,14 +204,14 @@ export const settingsItems = [
   { setting: 'OpenClaw 下载配置', default: '可自定义安装来源与配置路径', desc: '可调整 OpenClaw 安装入口，并单独设置 OpenClaw 配置文件路径。' },
 ];
 
-export const uninstallSteps = [
+export const uninstallSteps: UninstallGuideStep[] = [
   { step: '卸载主程序', command: '页面按钮：卸载 OpenClaw', desc: '调用 npm uninstall -g openclaw 卸载主程序。' },
   { step: '重新检测残余', command: '页面按钮：重新检测残余', desc: '扫描 npm 全局命令、全局包目录、本地 wrapper、用户目录副本与配置目录。' },
   { step: '清理安装残余', command: '页面按钮：清理安装残余', desc: '先尝试执行卸载，再批量删除检测到的残余文件和目录。' },
   { step: '逐项手动删除', command: '残余列表右侧：删除', desc: '当你只想删除某一个命令入口或目录时，可逐项确认并删除。' },
 ];
 
-export const anchorItems = [
+export const anchorItems: GuideAnchorItem[] = [
   { key: 'install', href: '#install', title: '一键安装' },
   { key: 'ai-config', href: '#ai-config', title: 'AI配置' },
   { key: 'channel-config', href: '#channel-config', title: '渠道配置' },
