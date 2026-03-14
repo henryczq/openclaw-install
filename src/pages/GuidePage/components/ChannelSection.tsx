@@ -9,7 +9,7 @@ export function ChannelSection() {
   return (
     <Card id="channel-config" title={<><MessageOutlined /> 渠道配置</>} style={{ marginTop: 24 }}>
       <Paragraph>
-        渠道配置用于设置 OpenClaw 与外部平台的连接，目前支持飞书渠道。
+        渠道配置页面目前以 QQ 机器人接入为主流程，飞书入口已拆分但仍处于开发中。
       </Paragraph>
 
       <Collapse>
@@ -50,8 +50,8 @@ export function ChannelSection() {
 
       <Alert
         message="注意事项"
-        description="飞书配置需要管理员权限，请确保您有企业自建应用的创建权限。"
-        type="warning"
+        description="QQ 配置支持一键执行，也支持逐步操作。如果你已经在内置浏览器中登录过 QQ 管理后台，页面会优先尝试直接进入后续步骤。"
+        type="info"
         showIcon
         style={{ marginTop: 16 }}
       />

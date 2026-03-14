@@ -197,7 +197,17 @@ export function useInstall(enableGitProxy: boolean = false) {
     addLog('开始下载并安装Git...');
     
     try {
-      const downloadUrl = 'https://mirror.nju.edu.cn/github-release/git-for-windows/git/Git%20for%20Windows%20v2.53.0.windows.1/Git-2.53.0-64-bit.exe';
+      // 动态获取最新版本的 Git 下载地址
+      addLog('正在获取最新版本信息...');
+      const gitInfo = await window.electronAPI.getGitDownloadUrl();
+      
+      if (!gitInfo.success || !gitInfo.downloadUrl) {
+        throw new Error(gitInfo.error || '获取下载地址失败');
+      }
+      
+      addLog(`获取到最新版本: v${gitInfo.version}`);
+      
+      const downloadUrl = gitInfo.downloadUrl;
       const tempPath = await window.electronAPI.getSystemInfo().then(info => info.tempPath);
       const installerPath = `${tempPath}\\git-installer.exe`;
       
@@ -366,6 +376,28 @@ export function useInstall(enableGitProxy: boolean = false) {
     }
   }, [addLog, updateStepStatus]);
 
+  const installAndStartGateway = useCallback(async () => {
+    updateStepStatus('start-gateway', 'running');
+    addLog('正在安装并启动OpenClaw网关服务...');
+
+    try {
+      // 先尝试启动网关（如果服务未安装会自动安装）
+      const result = await window.electronAPI.startOpenClawGateway();
+      if (result.success) {
+        updateStepStatus('start-gateway', 'success', result.message || '网关已启动');
+        addLog(`网关服务${result.message || '启动成功'}`);
+        return true;
+      } else {
+        throw new Error(result.error || '启动失败');
+      }
+    } catch (error) {
+      const errorText = error instanceof Error ? error.message : String(error);
+      updateStepStatus('start-gateway', 'error', `启动失败: ${errorText}`);
+      addLog(`网关服务启动失败: ${errorText}`);
+      return false;
+    }
+  }, [addLog, updateStepStatus]);
+
   const startInstall = useCallback(async () => {
     setIsInstalling(true);
     clearLogs();
@@ -416,6 +448,13 @@ export function useInstall(enableGitProxy: boolean = false) {
         addLog('配置文件创建失败，但OpenClaw已安装成功');
       }
       
+      // 7. 安装并启动网关
+      setCurrentStepIndex(6);
+      const gatewaySuccess = await installAndStartGateway();
+      if (!gatewaySuccess) {
+        addLog('网关启动失败，您可以稍后手动启动');
+      }
+      
       addLog('');
       addLog('========================================');
       addLog('安装完成！');
@@ -424,7 +463,6 @@ export function useInstall(enableGitProxy: boolean = false) {
       addLog('您现在可以：');
       addLog('1. 在"通道配置"页面配置QQ、飞书等消息通道');
       addLog('2. 在"AI配置"页面配置大模型API');
-      addLog('3. 启动OpenClaw服务');
       addLog('');
       addLog('提示：首次使用建议查看"使用指南"页面');
       
@@ -434,7 +472,7 @@ export function useInstall(enableGitProxy: boolean = false) {
       setIsInstalling(false);
       setCurrentStepIndex(0);
     }
-  }, [checkEnvironment, installVCRedist, installNode, installGit, installOpenClaw, initConfig, clearLogs, addLog]);
+  }, [checkEnvironment, installVCRedist, installNode, installGit, installOpenClaw, initConfig, installAndStartGateway, clearLogs, addLog]);
 
   const resetAllStatus = useCallback(() => {
     setSystemStatus({
@@ -453,7 +491,7 @@ export function useInstall(enableGitProxy: boolean = false) {
   }, []);
 
   const downloadGitManually = useCallback(() => {
-    window.electronAPI.openExternal('https://git-scm.com/download/win');
+    window.electronAPI.openExternal('https://mirror.nju.edu.cn/github-release/git-for-windows/git/');
   }, []);
 
   const installOpenClawManually = useCallback(() => {

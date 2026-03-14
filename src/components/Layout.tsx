@@ -5,6 +5,7 @@ import {
   MessageOutlined,
   DeleteOutlined,
   SettingOutlined,
+  ApiOutlined,
   BookOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
@@ -25,6 +26,7 @@ const menuItems = [
   { key: 'uninstall', icon: <DeleteOutlined />, label: '卸载清理' },
   // { key: 'diagnose', icon: <MedicineBoxOutlined />, label: '一键诊断' }, // 暂时隐藏
   { key: 'settings', icon: <SettingOutlined />, label: '设置' },
+  { key: 'channel-settings', icon: <ApiOutlined />, label: '渠道设置' },
   { key: 'guide', icon: <BookOutlined />, label: '使用说明' },
   { key: 'about', icon: <InfoCircleOutlined />, label: '关于' },
 ];

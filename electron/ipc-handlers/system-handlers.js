@@ -4,9 +4,86 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import https from 'https';
 import { checkOpenClawInstalled } from '../utils/openclaw-gateway-service.js';
 
 const execAsync = promisify(exec);
+
+/**
+ * 获取 Git 最新版本的下载地址（从南京大学镜像站）
+ * @returns {Promise<{success: boolean, version?: string, downloadUrl?: string, error?: string}>}
+ */
+async function fetchLatestGitDownloadUrl() {
+  return new Promise((resolve) => {
+    const mirrorUrl = 'https://mirror.nju.edu.cn/github-release/git-for-windows/git/';
+    
+    https.get(mirrorUrl, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          // 解析页面获取最新版本目录
+          // 页面格式类似: <a href="Git for Windows 2.53.0(2)/">Git for Windows 2.53.0(2)/</a>
+          const versionMatch = data.match(/Git for Windows (\d+\.\d+\.\d+(?:\(\d+\))?)/);
+          
+          if (!versionMatch) {
+            resolve({ success: false, error: '无法解析版本信息' });
+            return;
+          }
+          
+          const versionDir = versionMatch[0]; // "Git for Windows 2.53.0(2)"
+          const version = versionMatch[1]; // "2.53.0(2)"
+          
+          // 构建版本目录 URL
+          const versionUrl = `${mirrorUrl}${encodeURIComponent(versionDir)}/`;
+          
+          // 获取版本目录页面，找到具体的 exe 文件
+          https.get(versionUrl, (res2) => {
+            let data2 = '';
+            
+            res2.on('data', (chunk) => {
+              data2 += chunk;
+            });
+            
+            res2.on('end', () => {
+              // 查找 64-bit.exe 文件
+              const exeMatch = data2.match(/href="([^"]*64-bit\.exe)"/);
+              
+              if (!exeMatch) {
+                resolve({ success: false, error: '无法找到下载文件' });
+                return;
+              }
+              
+              const filename = exeMatch[1];
+              const downloadUrl = `${versionUrl}${filename}`;
+              
+              // 清理版本号格式 (2.53.0(2) -> 2.53.0.2)
+              const cleanVersion = version.replace(/\((\d+)\)/, '.$1');
+              
+              resolve({
+                success: true,
+                version: cleanVersion,
+                downloadUrl,
+                filename: filename.split('/').pop()
+              });
+            });
+          }).on('error', (err) => {
+            resolve({ success: false, error: `获取版本目录失败: ${err.message}` });
+          });
+          
+        } catch (error) {
+          resolve({ success: false, error: `解析失败: ${error.message}` });
+        }
+      });
+    }).on('error', (err) => {
+      resolve({ success: false, error: `请求镜像站失败: ${err.message}` });
+    });
+  });
+}
 
 export function registerSystemHandlers(ipcMain) {
   // 执行命令
@@ -76,6 +153,11 @@ export function registerSystemHandlers(ipcMain) {
     } catch (error) {
       return { installed: false, needUpdate: true };
     }
+  });
+
+  // 获取Git最新版本下载地址
+  ipcMain.handle('get-git-download-url', async () => {
+    return await fetchLatestGitDownloadUrl();
   });
 
   // 检查OpenClaw

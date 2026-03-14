@@ -16,6 +16,7 @@ import {
   registerQqHandlers,
   registerInstallHandlers,
   registerUtilsHandlers,
+  registerChannelHandlers,
   loadAppSettings,
 } from './ipc-handlers/index.js';
 
@@ -85,6 +86,7 @@ app.whenReady().then(async () => {
   registerQqHandlers(ipcMain);
   registerInstallHandlers(ipcMain);
   registerUtilsHandlers(ipcMain);
+  registerChannelHandlers(ipcMain);
 
   // 重启应用
   ipcMain.handle('restart-app', (event, options = {}) => {

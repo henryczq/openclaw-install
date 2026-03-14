@@ -1,14 +1,69 @@
-import { Card, Button, Space, Steps, Row, Col, Alert, Spin, Typography } from 'antd';
-import { RobotOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Card, Button, Space, Steps, Row, Col, Alert, Spin, Typography, Radio } from 'antd';
+import { RobotOutlined, ThunderboltOutlined, ReadOutlined } from '@ant-design/icons';
 import { useQqConfig } from '../hooks/useQqConfig';
+import { useEffect, useRef } from 'react';
 
 const { Text } = Typography;
 
-const stepItems = [
+// 实时日志显示组件
+function LogViewer({ logs }: { logs: string[] }) {
+  const logEndRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    // 自动滚动到底部
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+  
+  if (logs.length === 0) return null;
+  
+  return (
+    <div style={{ 
+      marginTop: 10, 
+      background: '#1e1e1e', 
+      color: '#d4d4d4', 
+      padding: 10, 
+      borderRadius: 4, 
+      fontFamily: 'Consolas, Monaco, monospace', 
+      fontSize: 12, 
+      maxHeight: 300, 
+      overflow: 'auto',
+      border: '1px solid #333'
+    }}>
+      <div style={{ color: '#6cc644', marginBottom: 8, fontWeight: 'bold' }}>
+        📋 实时日志 ({logs.length} 条)
+      </div>
+      {logs.map((log, index) => (
+        <div key={index} style={{ 
+          marginBottom: 2,
+          color: log.includes('错误') || log.includes('失败') || log.includes('❌') ? '#ff6b6b' : 
+                 log.includes('成功') || log.includes('✅') ? '#6cc644' :
+                 log.includes('调试') || log.includes('===') ? '#ffd93d' : '#d4d4d4'
+        }}>
+          {log}
+        </div>
+      ))}
+      <div ref={logEndRef} />
+    </div>
+  );
+}
+
+// 创建机器人模式的步骤
+const createStepItems = [
   { title: '检查插件', description: '检查QQ插件是否已安装' },
   { title: '安装插件', description: '安装QQ机器人插件' },
   { title: '登录管理页', description: '打开QQ机器人管理页面' },
   { title: '创建机器人', description: '创建QQ机器人' },
+  { title: '获取凭证', description: '获取AppID和AppSecret' },
+  { title: '绑定配置', description: '绑定QQ机器人到OpenClaw' },
+  { title: '重启服务', description: '重启OpenClaw服务' },
+  { title: '完成', description: 'QQ渠道配置完成' },
+];
+
+// 读取配置模式的步骤（跳过创建机器人）
+const readStepItems = [
+  { title: '检查插件', description: '检查QQ插件是否已安装' },
+  { title: '安装插件', description: '安装QQ机器人插件' },
+  { title: '登录管理页', description: '打开QQ机器人管理页面' },
   { title: '获取凭证', description: '获取AppID和AppSecret' },
   { title: '绑定配置', description: '绑定QQ机器人到OpenClaw' },
   { title: '重启服务', description: '重启OpenClaw服务' },
@@ -45,9 +100,14 @@ export function QqConfig() {
     setQqConfig,
     handleQqAction,
     runAllSteps,
+    runReadConfigSteps,
     openclawInstalled,
     isCheckingOpenclaw,
+    configMode,
+    setConfigMode,
   } = useQqConfig();
+
+  const stepItems = configMode === 'create' ? createStepItems : readStepItems;
 
   if (isCheckingOpenclaw) {
     return (
@@ -74,16 +134,55 @@ export function QqConfig() {
   return (
     <Row gutter={24}>
       <Col span={12}>
-        <Card title="步骤列表">
-          <Button 
-            type="primary" 
-            icon={<ThunderboltOutlined />} 
-            onClick={runAllSteps} 
-            loading={isProcessing}
+        <Card title="配置模式">
+          <Radio.Group 
+            value={configMode} 
+            onChange={(e) => setConfigMode(e.target.value)}
             style={{ marginBottom: 16, width: '100%' }}
+            buttonStyle="solid"
           >
-            一键配置
-          </Button>
+            <Radio.Button value="create" style={{ width: '50%', textAlign: 'center' }}>
+              <RobotOutlined /> 一键创建机器人
+            </Radio.Button>
+            <Radio.Button value="read" style={{ width: '50%', textAlign: 'center' }}>
+              <ReadOutlined /> 一键读取配置
+            </Radio.Button>
+          </Radio.Group>
+          
+          <Alert
+            message={configMode === 'create' ? '一键创建机器人' : '一键读取配置'}
+            description={
+              configMode === 'create' 
+                ? '完整流程：自动创建新的QQ机器人并配置到OpenClaw' 
+                : '快速流程：读取已创建的QQ机器人配置到OpenClaw（跳过创建步骤）'
+            }
+            type={configMode === 'create' ? 'info' : 'success'}
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+
+          {configMode === 'create' ? (
+            <Button 
+              type="primary" 
+              icon={<ThunderboltOutlined />} 
+              onClick={runAllSteps} 
+              loading={isProcessing}
+              style={{ marginBottom: 16, width: '100%' }}
+            >
+              一键创建机器人
+            </Button>
+          ) : (
+            <Button 
+              type="primary" 
+              icon={<ReadOutlined />} 
+              onClick={runReadConfigSteps} 
+              loading={isProcessing}
+              style={{ marginBottom: 16, width: '100%' }}
+            >
+              一键读取配置
+            </Button>
+          )}
+          
           <Steps
             direction="vertical"
             current={currentStep}
@@ -118,6 +217,7 @@ export function QqConfig() {
                 检查插件
               </Button>
               {renderRpaProgress(rpaProgress)}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
           {currentStep === 1 && (
@@ -132,11 +232,7 @@ export function QqConfig() {
                 {pluginInstalled ? '重新安装插件' : '安装插件'}
               </Button>
               {renderRpaProgress(rpaProgress)}
-              {installLogs.length > 0 && (
-                <div style={{ marginTop: 10, background: '#000', color: '#fff', padding: 10, borderRadius: 4, fontFamily: 'monospace', fontSize: 12, maxHeight: 200, overflow: 'auto' }}>
-                  {installLogs.map((log, index) => <div key={index}>{log}</div>)}
-                </div>
-              )}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
           {currentStep === 2 && (
@@ -157,9 +253,10 @@ export function QqConfig() {
                 如果自动检测未触发，可点击"已登录，手动继续"
               </Text>
               {renderRpaProgress(rpaProgress)}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
-          {currentStep === 3 && (
+          {configMode === 'create' && currentStep === 3 && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Alert 
                 message="创建QQ机器人" 
@@ -171,9 +268,10 @@ export function QqConfig() {
                 自动创建机器人
               </Button>
               {renderRpaProgress(rpaProgress)}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
-          {currentStep === 4 && (
+          {((configMode === 'create' && currentStep === 4) || (configMode === 'read' && currentStep === 3)) && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Alert 
                 message="获取AppID和AppSecret" 
@@ -191,27 +289,40 @@ export function QqConfig() {
                 </div>
               )}
               {renderRpaProgress(rpaProgress)}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
-          {currentStep === 5 && (
+          {((configMode === 'create' && currentStep === 5) || (configMode === 'read' && currentStep === 4)) && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Alert 
                 message="绑定QQ机器人" 
-                description="执行命令: openclaw channels add --channel qqbot --token 'appId:appSecret'" 
+                description="将获取到的凭证绑定到OpenClaw配置中" 
                 type="info" 
                 showIcon 
               />
-              <Button type="primary" icon={<RobotOutlined />} onClick={() => handleQqAction('bind-channel')} loading={isProcessing}>
+              <Button 
+                type="primary" 
+                icon={<RobotOutlined />} 
+                onClick={() => handleQqAction('bind-channel')} 
+                loading={isProcessing}
+                disabled={!qqConfig.appId || !qqConfig.appSecret}
+              >
                 绑定机器人
               </Button>
+              {!qqConfig.appId && (
+                <Text type="warning" style={{ fontSize: 12 }}>
+                  请先获取AppID和AppSecret
+                </Text>
+              )}
               {renderRpaProgress(rpaProgress)}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
-          {currentStep === 6 && (
+          {((configMode === 'create' && currentStep === 6) || (configMode === 'read' && currentStep === 5)) && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Alert 
                 message="重启OpenClaw服务" 
-                description="执行命令: openclaw gateway restart" 
+                description="重启服务使配置生效" 
                 type="info" 
                 showIcon 
               />
@@ -219,39 +330,24 @@ export function QqConfig() {
                 重启服务
               </Button>
               {renderRpaProgress(rpaProgress)}
+              <LogViewer logs={installLogs} />
             </Space>
           )}
-          {currentStep === 7 && (
-            <Alert 
-              message="✅ QQ渠道配置完成！" 
-              type="success" 
-              showIcon 
-            />
+          {((configMode === 'create' && currentStep === 7) || (configMode === 'read' && currentStep === 6)) && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Alert 
+                message="配置完成" 
+                description="QQ渠道配置已完成！" 
+                type="success" 
+                showIcon 
+              />
+              <div style={{ marginTop: 16 }}>
+                <h4>配置信息：</h4>
+                <p><strong>AppID:</strong> {qqConfig.appId}</p>
+                <p><strong>AppSecret:</strong> {qqConfig.appSecret || '未设置'}</p>
+              </div>
+            </Space>
           )}
-        </Card>
-      </Col>
-      <Col span={24} style={{ marginTop: 24 }}>
-        <Card title="变量面板">
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div>
-              <span style={{ marginRight: 8 }}>AppID:</span>
-              <input 
-                value={qqConfig.appId} 
-                onChange={(e) => setQqConfig({ appId: e.target.value })} 
-                placeholder="请输入AppID"
-                style={{ width: 300, padding: '4px 8px' }}
-              />
-            </div>
-            <div>
-              <span style={{ marginRight: 8 }}>AppSecret:</span>
-              <input 
-                value={qqConfig.appSecret} 
-                onChange={(e) => setQqConfig({ appSecret: e.target.value })} 
-                placeholder="请输入AppSecret"
-                style={{ width: 300, padding: '4px 8px' }}
-              />
-            </div>
-          </Space>
         </Card>
       </Col>
     </Row>

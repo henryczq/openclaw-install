@@ -7,6 +7,7 @@ import ChannelConfigPage from './pages/ChannelConfigPage';
 import UninstallPage from './pages/UninstallPage';
 import DiagnosePage from './pages/DiagnosePage';
 import SettingsPage from './pages/SettingsPage';
+import ChannelSettingsPage from './pages/ChannelSettingsPage';
 import GuidePage from './pages/GuidePage';
 import AboutPage from './pages/AboutPage';
 import { useAppStore } from './store';
@@ -28,6 +29,8 @@ function App() {
         return <DiagnosePage />;
       case 'settings':
         return <SettingsPage />;
+      case 'channel-settings':
+        return <ChannelSettingsPage />;
       case 'guide':
         return <GuidePage />;
       case 'about':

@@ -6,3 +6,4 @@ export { registerFeishuHandlers, feishuWindow } from './feishu-handlers.js';
 export { registerQqHandlers } from './qq-handlers.js';
 export { registerInstallHandlers } from './install-handlers.js';
 export { registerUtilsHandlers } from './utils-handlers.js';
+export { registerChannelHandlers } from './channel-handlers.js';

@@ -3,7 +3,7 @@
 // ============================================
 
 /** 导航键 */
-export type NavKey = 'install' | 'ai-config' | 'channel-config' | 'uninstall' | 'diagnose' | 'settings' | 'guide' | 'about';
+export type NavKey = 'install' | 'ai-config' | 'channel-config' | 'uninstall' | 'diagnose' | 'settings' | 'channel-settings' | 'guide' | 'about';
 
 /** 安装步骤状态 */
 export type InstallStepStatus = 'pending' | 'running' | 'success' | 'error';
@@ -199,6 +199,7 @@ export interface ElectronAPI {
   checkNode: () => Promise<NodeCheckResult>;
   checkNpm: () => Promise<NpmCheckResult>;
   checkGit: () => Promise<GitCheckResult>;
+  getGitDownloadUrl: () => Promise<{ success: boolean; version?: string; downloadUrl?: string; filename?: string; error?: string }>;
   checkOpenClaw: (strictMode?: boolean) => Promise<OpenClawCheckResult>;
   checkVCRedist: () => Promise<VCRedistCheckResult>;
 
@@ -260,6 +261,8 @@ export interface ElectronAPI {
   qqCreateRobot: () => Promise<{ success: boolean; error?: string }>;
   qqGetCredentials: () => Promise<{ success: boolean; data?: { appId: string; appSecret: string }; error?: string }>;
   configQqChannel: (appId: string, appSecret: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  checkQqChannelExists: (appId: string) => Promise<{ exists: boolean; existingAppId?: string; error?: string }>;
+  deleteQqChannel: () => Promise<{ success: boolean; message?: string; error?: string }>;
   restartOpenClaw: () => Promise<{ success: boolean; output?: string; error?: string }>;
   startOpenClawGateway: () => Promise<{ success: boolean; message?: string; output?: string; error?: string }>;
   stopOpenClawGateway: () => Promise<{ success: boolean; message?: string; output?: string; error?: string }>;
@@ -295,6 +298,17 @@ export interface ElectronAPI {
   deleteModel: (providerId: string, modelId: string, autoDeleteProvider?: boolean) => Promise<{ success: boolean; message: string; providerDeleted?: boolean; providerEmpty?: boolean; isLastModel?: boolean; isDefaultModel?: boolean; error?: string }>;
   deleteProvider: (providerId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   updateModel: (params: { providerId: string; modelId: string; modelName?: string; baseUrl?: string; apiKey?: string; contextWindow?: number; maxTokens?: number; reasoning?: boolean }) => Promise<{ success: boolean; message?: string; fullName?: string; error?: string }>;
+  
+  // 渠道管理
+  listChannels: () => Promise<{ success: boolean; channels?: Array<{ channelId: string; name: string; enabled: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string; accounts?: Record<string, any>; raw?: any }>; error?: string }>;
+  getChannel: (channelId: string) => Promise<{ success: boolean; channel?: { channelId: string; name: string; enabled: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string; accounts?: Record<string, any>; raw?: any }; error?: string }>;
+  saveChannel: (params: { channelId: string; enabled?: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string }) => Promise<{ success: boolean; message?: string; channelId?: string; error?: string }>;
+  deleteChannel: (channelId: string) => Promise<{ success: boolean; message?: string; bindingsRemoved?: number; error?: string }>;
+  getChannelBindings: (channelId: string, accountId?: string) => Promise<{ success: boolean; bindings?: Array<{ bindingId: string; agentId: string; agentName: string; accountId: string; peer?: any; workspace?: string; model?: string }>; error?: string }>;
+  createBinding: (agentId: string, channelId: string, accountId?: string, peer?: any) => Promise<{ success: boolean; message?: string; agentId?: string; channelId?: string; accountId?: string; error?: string }>;
+  removeBinding: (agentId: string, channelId: string, accountId?: string) => Promise<{ success: boolean; message?: string; agentId?: string; channelId?: string; accountId?: string; error?: string }>;
+  getFeishuPolicyOptions: () => Promise<{ success: boolean; options?: { dmPolicy: Array<{ value: string; label: string; description: string }>; groupPolicy: Array<{ value: string; label: string; description: string }>; connectionMode: Array<{ value: string; label: string; description: string }>; replyMode: Array<{ value: string; label: string; description: string }>; chunkMode: Array<{ value: string; label: string; description: string }> }; error?: string }>;
+  getPolicyOptionDetail: (policyType: string, value: string) => Promise<{ success: boolean; detail?: { value: string; label: string; description: string } | null; error?: string }>;
 }
 
 // ============================================

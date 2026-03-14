@@ -40,7 +40,30 @@ export async function checkOpenClawInstalled(strictMode = false) {
 }
 
 /**
+ * 安装 OpenClaw Gateway 服务
+ * @param {number} timeout - 超时时间（毫秒）
+ * @returns {Promise<{success: boolean, message?: string, error?: string}>}
+ */
+export async function installOpenClawGateway(timeout = 60000) {
+  try {
+    const checkResult = await checkOpenClawInstalled();
+    if (!checkResult.installed) {
+      return { success: false, error: 'OpenClaw 未安装，请先安装 OpenClaw' };
+    }
+
+    console.log('[openclaw-gateway-service] 正在安装 OpenClaw Gateway...');
+    const { stdout } = await execAsync('openclaw gateway install', { timeout });
+    console.log('[openclaw-gateway-service] OpenClaw Gateway 安装成功');
+    return { success: true, message: '服务安装成功', output: stdout };
+  } catch (error) {
+    console.error('[openclaw-gateway-service] 安装 OpenClaw Gateway 失败:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 启动 OpenClaw Gateway 服务
+ * 如果服务未安装，会先执行安装
  * @param {number} timeout - 超时时间（毫秒）
  * @returns {Promise<{success: boolean, message?: string, error?: string}>}
  */
@@ -52,9 +75,39 @@ export async function startOpenClawGateway(timeout = 30000) {
     }
 
     console.log('[openclaw-gateway-service] 正在启动 OpenClaw Gateway...');
-    const { stdout } = await execAsync('openclaw gateway start', { timeout });
-    console.log('[openclaw-gateway-service] OpenClaw Gateway 启动成功');
-    return { success: true, message: '服务启动成功', output: stdout };
+    
+    try {
+      const { stdout } = await execAsync('openclaw gateway start', { timeout });
+      console.log('[openclaw-gateway-service] OpenClaw Gateway 启动成功');
+      return { success: true, message: '服务启动成功', output: stdout };
+    } catch (startError) {
+      // 检查是否是服务未安装的错误
+      const errorMsg = startError.message || '';
+      const stderr = startError.stderr || '';
+      const output = errorMsg + stderr;
+      
+      if (output.includes('Gateway service missing') || output.includes('gateway install')) {
+        console.log('[openclaw-gateway-service] Gateway 服务未安装，先执行安装...');
+        
+        // 先安装服务
+        const installResult = await installOpenClawGateway(timeout);
+        if (!installResult.success) {
+          return { 
+            success: false, 
+            error: `Gateway 服务安装失败: ${installResult.error}` 
+          };
+        }
+        
+        // 安装成功后重新启动
+        console.log('[openclaw-gateway-service] 服务安装完成，重新启动...');
+        const { stdout } = await execAsync('openclaw gateway start', { timeout });
+        console.log('[openclaw-gateway-service] OpenClaw Gateway 启动成功');
+        return { success: true, message: '服务安装并启动成功', output: stdout };
+      }
+      
+      // 其他错误，直接抛出
+      throw startError;
+    }
   } catch (error) {
     console.error('[openclaw-gateway-service] 启动 OpenClaw Gateway 失败:', error.message);
     return { success: false, error: error.message };

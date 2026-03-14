@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkNode: () => ipcRenderer.invoke('check-node'),
   checkNpm: () => ipcRenderer.invoke('check-npm'),
   checkGit: () => ipcRenderer.invoke('check-git'),
+  getGitDownloadUrl: () => ipcRenderer.invoke('get-git-download-url'),
   checkOpenClaw: (strictMode) => ipcRenderer.invoke('check-openclaw', strictMode),
   checkVCRedist: () => ipcRenderer.invoke('check-vcredist'),
 
@@ -128,6 +129,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   qqCreateRobot: () => ipcRenderer.invoke('qq-create-robot'),
   qqGetCredentials: () => ipcRenderer.invoke('qq-get-credentials'),
   configQqChannel: (appId, appSecret) => ipcRenderer.invoke('config-qq-channel', appId, appSecret),
+  checkQqChannelExists: (appId) => ipcRenderer.invoke('check-qq-channel-exists', appId),
+  deleteQqChannel: () => ipcRenderer.invoke('delete-qq-channel'),
   restartOpenClaw: () => ipcRenderer.invoke('restart-openclaw'),
   startOpenClawGateway: () => ipcRenderer.invoke('start-openclaw-gateway'),
   stopOpenClawGateway: () => ipcRenderer.invoke('stop-openclaw-gateway'),
@@ -152,4 +155,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteModel: (providerId, modelId, autoDeleteProvider) => ipcRenderer.invoke('delete-model', providerId, modelId, autoDeleteProvider),
   deleteProvider: (providerId) => ipcRenderer.invoke('delete-provider', providerId),
   updateModel: (params) => ipcRenderer.invoke('update-model', params),
+  
+  // 渠道管理
+  listChannels: () => ipcRenderer.invoke('list-channels'),
+  getChannel: (channelId) => ipcRenderer.invoke('get-channel', channelId),
+  saveChannel: (params) => ipcRenderer.invoke('save-channel', params),
+  deleteChannel: (channelId) => ipcRenderer.invoke('delete-channel', channelId),
+  getChannelBindings: (channelId, accountId) => ipcRenderer.invoke('get-channel-bindings', channelId, accountId),
+  createBinding: (agentId, channelId, accountId, peer) => ipcRenderer.invoke('create-binding', agentId, channelId, accountId, peer),
+  removeBinding: (agentId, channelId, accountId) => ipcRenderer.invoke('remove-binding', agentId, channelId, accountId),
+  getFeishuPolicyOptions: () => ipcRenderer.invoke('get-feishu-policy-options'),
+  getPolicyOptionDetail: (policyType, value) => ipcRenderer.invoke('get-policy-option-detail', policyType, value),
 });

@@ -98,6 +98,13 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "cmder_mini",
+        "to": "cmder_mini",
+        "filter": ["**/*"]
+      }
+    ],
     "asar": false,
     "win": {
       "target": "nsis"

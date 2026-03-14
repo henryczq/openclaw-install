@@ -8,7 +8,7 @@ export function SettingsSection() {
   return (
     <Card id="settings" title={<><SettingOutlined /> 设置</>} style={{ marginTop: 24 }}>
       <Paragraph>
-        设置页面用于管理 OpenClaw 的配置文件路径和其他全局设置。
+        设置页目前分为模型设置、服务管理、查看配置，以及 Node.js / Git / OpenClaw 下载配置几个页签。
       </Paragraph>
 
       <Text strong>配置项说明：</Text>
@@ -26,8 +26,8 @@ export function SettingsSection() {
       />
 
       <Alert
-        message="配置文件格式"
-        description="openclaw.json 采用 JSON 格式，包含 models、agents、channels 等配置项。"
+        message="使用建议"
+        description="修改下载配置和配置文件内容后，请记得保存；服务管理页签依赖本机已经安装 OpenClaw。"
         type="info"
         showIcon
         style={{ marginTop: 16 }}

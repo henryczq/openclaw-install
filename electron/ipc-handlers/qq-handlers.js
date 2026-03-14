@@ -4,7 +4,6 @@ import fs from 'fs';
 import { BrowserWindow, shell } from 'electron';
 import { createAutomationWindowManager } from './ai/provider-window.js';
 import { getConfigPath } from './config-handlers.js';
-import { isDebugEnabled } from '../config/debug-config.js';
 import { checkOpenClawInstalled, restartOpenClawGateway } from '../utils/openclaw-gateway-service.js';
 import { 
   listOpenClawPlugins, 
@@ -52,10 +51,19 @@ export function registerQqHandlers(ipcMain) {
 
       console.log('插件列表:', result.plugins);
 
-      // 检查是否包含QQ Bot相关的行
+      // 检查是否包含QQ Bot相关的插件
+      // QQ插件可能的名称: @openclaw/qqbot, openclaw-qqbot, qqbot, qq-bot, qq 等
       const hasQqBot = result.plugins.some(plugin => {
         const lowerPlugin = plugin.toLowerCase();
-        return lowerPlugin.includes('qq') || lowerPlugin.includes('tencent');
+        const isMatch = lowerPlugin.includes('qq') || 
+                       lowerPlugin.includes('tencent') ||
+                       lowerPlugin === 'qqbot' ||
+                       lowerPlugin === '@openclaw/qqbot' ||
+                       lowerPlugin.includes('qqbot');
+        if (isMatch) {
+          console.log('找到QQ插件:', plugin);
+        }
+        return isMatch;
       });
 
       console.log('QQ插件检测结果:', hasQqBot);
@@ -215,17 +223,105 @@ export function registerQqHandlers(ipcMain) {
           const appIdEl = firstCard.querySelector('.robot-card__value');
           const appId = appIdEl ? appIdEl.textContent.trim() : '';
 
+          const logs = [];
+          
           // 尝试获取AppSecret
           let appSecret = '';
           const secretEl = firstCard.querySelectorAll('.robot-card__value')[1];
           if (secretEl) {
             appSecret = secretEl.textContent.trim();
+            logs.push('读取到AppSecret: [' + appSecret + ']');
+            logs.push('AppSecret长度: ' + appSecret.length);
+            logs.push('是否包含*: ' + appSecret.includes('*'));
+          } else {
+            logs.push('未找到AppSecret元素');
+          }
+          
+          // 如果AppSecret是*号（被隐藏），点击"查看"按钮处理弹窗
+          if (appSecret.includes('*')) {
+            logs.push('AppSecret被隐藏，尝试点击第一个机器人卡片的"查看"按钮');
+            
+            // 在第一个机器人卡片内查找"查看"按钮
+            // 根据用户提供的HTML结构: <div class="robot-card__action"><button type="button" class="robot-card__link">查看</button></div>
+            let viewBtn = firstCard.querySelector('.robot-card__action button.robot-card__link');
+            logs.push('查找按钮1 (.robot-card__action button.robot-card__link): ' + (viewBtn ? '找到' : '未找到'));
+            
+            if (!viewBtn) {
+              // 尝试更宽泛的选择器
+              viewBtn = firstCard.querySelector('.robot-card__action button');
+              logs.push('查找按钮2 (.robot-card__action button): ' + (viewBtn ? '找到' : '未找到'));
+            }
+            
+            if (!viewBtn) {
+              // 查找所有按钮，找包含"查看"文本的
+              const allButtons = firstCard.querySelectorAll('button');
+              logs.push('卡片内所有按钮数量: ' + allButtons.length);
+              for (const btn of allButtons) {
+                const btnText = btn.textContent.trim();
+                logs.push('按钮文本: [' + btnText + ']');
+                if (btnText === '查看') {
+                  viewBtn = btn;
+                  logs.push('找到"查看"按钮');
+                  break;
+                }
+              }
+            }
+            
+            if (viewBtn) {
+              logs.push('找到按钮，文本: [' + viewBtn.textContent.trim() + ']');
+              logs.push('按钮HTML: ' + viewBtn.outerHTML.substring(0, 200));
+              
+              // 如果按钮文本为空，可能是子元素包含文本，尝试查找子元素
+              if (!viewBtn.textContent.trim()) {
+                const childWithText = viewBtn.querySelector('span, div, i');
+                if (childWithText) {
+                  logs.push('按钮子元素文本: [' + childWithText.textContent.trim() + ']');
+                }
+              }
+              
+              viewBtn.click();
+              logs.push('已点击按钮');
+              await sleep(1500); // 等待弹窗出现
+              
+              // 查找"确认重置"按钮并点击
+              const confirmBtn = document.querySelector('.q-dialog__btn--confirm');
+              if (confirmBtn) {
+                logs.push('找到"确认重置"按钮，正在点击');
+                confirmBtn.click();
+                
+                // 等待5秒让AppSecret显示
+                logs.push('等待5秒让AppSecret显示...');
+                await sleep(5000);
+                
+                // 重新读取AppSecret
+                const secretElAfterReset = firstCard.querySelectorAll('.robot-card__value')[1];
+                if (secretElAfterReset) {
+                  appSecret = secretElAfterReset.textContent.trim();
+                  logs.push('重置后读取AppSecret: ' + appSecret.substring(0, 4) + '****');
+                }
+              } else {
+                logs.push('未找到"确认重置"按钮');
+              }
+            } else {
+              logs.push('未找到"查看"按钮');
+            }
+          }
+
+          // 如果AppSecret仍然是*号，需要用户手动输入
+          if (appSecret.includes('*')) {
+            return { 
+              success: false, 
+              error: 'AppSecret需要手动获取', 
+              needManualInput: true,
+              data: { appId, appSecret: '' },
+              logs: logs
+            };
           }
 
           if (appId) {
-            return { success: true, data: { appId, appSecret } };
+            return { success: true, data: { appId, appSecret }, logs: logs };
           }
-          return { success: false, error: '未获取到AppID' };
+          return { success: false, error: '未获取到AppID', logs: logs };
         })()
       `);
 
@@ -245,15 +341,89 @@ export function registerQqHandlers(ipcMain) {
   // 配置QQ渠道
   ipcMain.handle('config-qq-channel', async (event, appId, appSecret) => {
     try {
-      // DEBUG 模式下跳过实际绑定
-      if (isDebugEnabled()) {
-        console.log('[DEBUG] 跳过 QQ 渠道绑定:', { appId, appSecret: appSecret.substring(0, 4) + '...' });
-        return { success: true, message: '[DEBUG] 已跳过 QQ 渠道绑定' };
-      }
-
       const token = `${appId}:${appSecret}`;
       return await addOpenClawChannel('qqbot', token);
     } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 检查QQ渠道是否存在（指定appId）
+  ipcMain.handle('check-qq-channel-exists', async (event, appId) => {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      const getConfigPath = () => {
+        if (process.env.OPENCLAW_CONFIG_PATH) {
+          return process.env.OPENCLAW_CONFIG_PATH;
+        }
+        const openclawDir = process.env.OPENCLAW_STATE_DIR || 
+                           (process.env.OPENCLAW_HOME ? path.join(process.env.OPENCLAW_HOME, '.openclaw') : 
+                            path.join(os.homedir(), '.openclaw'));
+        return path.join(openclawDir, 'openclaw.json');
+      };
+      
+      const configPath = getConfigPath();
+      
+      if (!fs.existsSync(configPath)) {
+        return { exists: false };
+      }
+      
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const config = JSON.parse(content);
+      
+      if (config.channels && config.channels.qqbot) {
+        // 配置文件中使用 appId 字段存储
+        const existingAppId = config.channels.qqbot.appId;
+        console.log(`[check-qq-channel-exists] 找到qqbot配置，existingAppId=${existingAppId}, 当前appId=${appId}`);
+        return { exists: existingAppId === appId, existingAppId };
+      }
+      
+      console.log(`[check-qq-channel-exists] 未找到qqbot配置`);
+      return { exists: false };
+    } catch (error) {
+      console.error('检查QQ渠道失败:', error);
+      return { exists: false, error: error.message };
+    }
+  });
+
+  // 删除QQ渠道配置
+  ipcMain.handle('delete-qq-channel', async () => {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      const getConfigPath = () => {
+        if (process.env.OPENCLAW_CONFIG_PATH) {
+          return process.env.OPENCLAW_CONFIG_PATH;
+        }
+        const openclawDir = process.env.OPENCLAW_STATE_DIR || 
+                           (process.env.OPENCLAW_HOME ? path.join(process.env.OPENCLAW_HOME, '.openclaw') : 
+                            path.join(os.homedir(), '.openclaw'));
+        return path.join(openclawDir, 'openclaw.json');
+      };
+      
+      const configPath = getConfigPath();
+      
+      if (!fs.existsSync(configPath)) {
+        return { success: true, message: '配置文件不存在' };
+      }
+      
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const config = JSON.parse(content);
+      
+      if (config.channels && config.channels.qqbot) {
+        delete config.channels.qqbot;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+        return { success: true, message: '已删除qqbot配置' };
+      }
+      
+      return { success: true, message: 'qqbot配置不存在' };
+    } catch (error) {
+      console.error('删除QQ渠道失败:', error);
       return { success: false, error: error.message };
     }
   });

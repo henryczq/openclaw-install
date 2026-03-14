@@ -8,7 +8,7 @@ export function UninstallSection() {
   return (
     <Card id="uninstall" title={<><InfoCircleOutlined /> 卸载清理</>} style={{ marginTop: 24 }}>
       <Paragraph>
-        提供干净的软件卸载功能，删除 OpenClaw 及其配置。
+        卸载清理页面除了卸载 OpenClaw 主程序外，还支持检测安装残余、批量清理和逐项手动删除。
       </Paragraph>
 
       <Text strong>卸载步骤：</Text>
@@ -27,7 +27,7 @@ export function UninstallSection() {
 
       <Alert
         message="警告"
-        description="卸载操作将删除所有配置和数据，请确保已备份重要信息！"
+        description="清理安装残余可能会删除 .openclaw 配置目录、本地 wrapper 和全局命令入口；如果你有重要配置，请先备份。"
         type="error"
         showIcon
         style={{ marginTop: 16 }}

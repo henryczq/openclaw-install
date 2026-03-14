@@ -1,13 +1,57 @@
 // 飞书相关 IPC 处理程序
 import { ipcMain, BrowserWindow } from 'electron';
-import { exec, execSync } from 'child_process';
+import { exec, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { listOpenClawPlugins, installOpenClawPlugin, addOpenClawChannel } from '../utils/openclaw-commands.js';
 
 const execAsync = promisify(exec);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 let feishuWindow = null;
+
+function getCmderPath() {
+  const possiblePaths = [
+    path.join(process.resourcesPath, 'cmder_mini', 'Cmder.exe'),
+    path.join(process.cwd(), 'cmder_mini', 'Cmder.exe'),
+    path.join(path.dirname(process.execPath), 'cmder_mini', 'Cmder.exe'),
+    path.join(__dirname, '..', '..', 'cmder_mini', 'Cmder.exe')
+  ];
+  
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
+}
+
+function getCmderRootPath() {
+  const cmderPath = getCmderPath();
+  if (cmderPath) {
+    return path.dirname(cmderPath);
+  }
+  return null;
+}
+
+function getConEmuPath() {
+  const cmderRoot = getCmderRootPath();
+  if (!cmderRoot) return null;
+  
+  const conEmuPath = path.join(cmderRoot, 'vendor', 'conemu-maximus5', 'ConEmu64.exe');
+  if (fs.existsSync(conEmuPath)) {
+    return conEmuPath;
+  }
+  
+  const conEmuPath32 = path.join(cmderRoot, 'vendor', 'conemu-maximus5', 'ConEmu.exe');
+  if (fs.existsSync(conEmuPath32)) {
+    return conEmuPath32;
+  }
+  
+  return null;
+}
 
 // 工具函数：清理 IPC 结果中的 undefined 值
 function sanitizeIpcResult(result) {
@@ -73,26 +117,139 @@ export function registerFeishuHandlers() {
     }
   });
 
-  // 安装飞书插件
+  // 安装飞书插件 - 使用官方工具安装
   ipcMain.handle('install-feishu-plugin', async (event) => {
-    try {
-      // 使用公共方法安装插件，并通过回调发送进度
-      const result = await installOpenClawPlugin('feishu', {
-        onProgress: (data) => {
+    return new Promise((resolve) => {
+      const emit = (data) => {
+        try {
           event.sender.send('feishu-install-progress', data);
+        } catch (_) {}
+      };
+
+      emit('[飞书配置] 开始执行安装命令...\n');
+      emit('命令: echo n | npx -y @larksuite/openclaw-lark-tools install\n\n');
+
+      // 使用 echo n | 管道自动输入 n 来回答交互式确认
+      const command = 'echo n | npx -y @larksuite/openclaw-lark-tools install';
+      const cmderPath = getCmderPath();
+      const cmderRoot = getCmderRootPath();
+      const conEmuPath = getConEmuPath();
+      
+      emit(`[调试] cmderPath: ${cmderPath}\n`);
+      emit(`[调试] cmderRoot: ${cmderRoot}\n`);
+      emit(`[调试] conEmuPath: ${conEmuPath}\n`);
+      
+      let useCmder = false;
+      let useConEmu = false;
+      
+      if (conEmuPath && cmderRoot) {
+        useConEmu = true;
+        emit(`使用 ConEmu.exe 执行命令: ${conEmuPath}\n`);
+      } else if (cmderPath && cmderRoot) {
+        useCmder = true;
+        emit(`使用 Cmder.exe 执行命令: ${cmderPath}\n`);
+      } else {
+        emit(`Cmder/ConEmu 不存在，使用 cmd.exe 执行\n`);
+      }
+
+      let child;
+      if (useConEmu) {
+        // 使用 ConEmu 直接执行，避免 Cmder 的配置文件问题
+        const env = { 
+          ...process.env, 
+          FORCE_COLOR: '0'
+        };
+        
+        emit(`启动 ConEmu.exe 窗口...\n`);
+        
+        // ConEmu 参数: -run 执行命令
+        // 直接启动 ConEmu 并执行 cmd，不使用复杂的参数传递
+        child = spawn('cmd.exe', ['/c', 'start', '', conEmuPath, '-run', 'cmd.exe', '/k', command], {
+          detached: false,
+          windowsHide: false,
+          env: env,
+          cwd: cmderRoot,
+          shell: false
+        });
+        
+        emit(`ConEmu.exe 已启动，PID: ${child.pid}\n`);
+      } else if (useCmder) {
+        const env = { 
+          ...process.env, 
+          CMDER_ROOT: cmderRoot,
+          FORCE_COLOR: '0'
+        };
+        
+        // 直接使用 Cmder.exe 执行命令，使用 /C 参数
+        emit(`启动 Cmder.exe 窗口...\n`);
+        emit(`命令参数: /C "${command}"\n`);
+        
+        child = spawn(cmderPath, ['/C', command], {
+          detached: false,
+          windowsHide: false,
+          env: env,
+          cwd: cmderRoot,
+          shell: false
+        });
+        
+        emit(`Cmder.exe 已启动，PID: ${child.pid}\n`);
+      } else {
+        child = exec(`cmd.exe /c "echo n | ${command}"`, {
+          encoding: 'utf8',
+          maxBuffer: 10 * 1024 * 1024,
+          env: { ...process.env, FORCE_COLOR: '0' }
+        });
+      }
+
+      let output = '';
+      let foundAppId = null;
+
+      child.stdout?.on('data', (data) => {
+        const text = data.toString();
+        output += text;
+        emit(text);
+
+        const appIdMatch = text.match(/App ID[:\s]+(cli_[a-zA-Z0-9]+)/i);
+        if (appIdMatch) {
+          foundAppId = appIdMatch[1];
         }
       });
-      
-      return new Promise((resolve) => {
-        child.on('close', (code) => {
-          resolve({ success: code === 0 });
-        });
+
+      child.stderr?.on('data', (data) => {
+        const text = data.toString();
+        output += text;
+        emit(text);
       });
 
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+      child.on('close', (code) => {
+        const hasSuccess = output.includes('Successfully') || 
+                          output.includes('成功') || 
+                          output.includes('Registered') ||
+                          output.includes('Configuration saved') ||
+                          output.includes('配置已保存');
+        
+        if (code === 0 || hasSuccess) {
+          emit('\n[飞书配置] 安装完成！\n');
+          resolve({ 
+            success: true, 
+            output,
+            appId: foundAppId
+          });
+        } else {
+          emit(`\n[飞书配置] 安装结束，退出码: ${code}\n`);
+          resolve({ 
+            success: false, 
+            error: `安装失败，退出码: ${code}`,
+            output 
+          });
+        }
+      });
+
+      child.on('error', (error) => {
+        emit(`\n[飞书配置] 执行出错: ${error.message}\n`);
+        resolve({ success: false, error: error.message, output });
+      });
+    });
   });
 
   // 配置飞书渠道

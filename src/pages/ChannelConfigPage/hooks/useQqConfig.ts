@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { App } from 'antd';
 import { useAppStore } from '../../../store';
 import {
@@ -8,6 +8,8 @@ import {
   type QqAction,
   type QqProgressItem
 } from './qqConfigProgress';
+
+export type ConfigMode = 'create' | 'read';
 
 export function useQqConfig() {
   const { qqConfig, setQqConfig, addLog: storeAddLog } = useAppStore();
@@ -20,6 +22,19 @@ export function useQqConfig() {
   const [rpaProgress, setRpaProgress] = useState<QqProgressItem[]>([]);
   const [openclawInstalled, setOpenclawInstalled] = useState<boolean | null>(null);
   const [isCheckingOpenclaw, setIsCheckingOpenclaw] = useState(true);
+  const [configMode, setConfigMode] = useState<ConfigMode>('create');
+  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRestartingRef = useRef(false);
+  const hasRunRestartRef = useRef(false); // 防止重复重启
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
+    };
+  }, []);
 
   const notifySuccess = useCallback((text: string) => {
     messageApi?.success(text);
@@ -60,6 +75,12 @@ export function useQqConfig() {
     };
     checkOpenClaw();
   }, [notifyError]);
+
+  // 配置模式切换时重置步骤
+  useEffect(() => {
+    setCurrentStep(0);
+    setRpaProgress([]);
+  }, [configMode]);
 
   const startAction = useCallback((action: QqAction, logMessage: string, options?: { resetLogs?: boolean }) => {
     setIsProcessing(true);
@@ -102,7 +123,9 @@ export function useQqConfig() {
           addLog(`插件列表: ${result.output}`);
         }
         notifyError(result.error || 'QQ插件未安装，请先安装插件');
+        addLog('>>> 准备跳转到第1步（安装插件）');
         setCurrentStep(1);
+        addLog('>>> 已设置当前步骤为1');
       }
     } catch (error: unknown) {
       const errorMsg = getErrorMessage(error);
@@ -165,7 +188,12 @@ export function useQqConfig() {
         const maxAttempts = 24; // 24次 * 5秒 = 120秒 = 2分钟
         let attempts = 0;
 
-        const checkInterval = setInterval(async () => {
+        // 清理之前的定时器
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
+        }
+
+        checkIntervalRef.current = setInterval(async () => {
           attempts++;
           addLog(`第 ${attempts}/${maxAttempts} 次检查登录状态...`);
 
@@ -175,17 +203,31 @@ export function useQqConfig() {
 
             if (checkResult.loggedIn) {
               // 检测到已登录，停止轮询
-              clearInterval(checkInterval);
+              if (checkIntervalRef.current) {
+                clearInterval(checkIntervalRef.current);
+                checkIntervalRef.current = null;
+              }
               addLog('✅ 检测到已登录，自动进入下一步...');
-              notifySuccess('检测到已登录，自动创建机器人');
-              setCurrentStep(3);
-              await createRobot();
+              notifySuccess('检测到已登录');
+              
+              // 根据配置模式决定下一步
+              if (configMode === 'create') {
+                setCurrentStep(3);
+                await createRobot();
+              } else {
+                // 读取配置模式，跳过创建机器人，直接获取凭证
+                setCurrentStep(3);
+                await getCredentials();
+              }
               return;
             }
 
             // 检查是否达到最大次数
             if (attempts >= maxAttempts) {
-              clearInterval(checkInterval);
+              if (checkIntervalRef.current) {
+                clearInterval(checkIntervalRef.current);
+                checkIntervalRef.current = null;
+              }
               addLog('⏰ 2分钟内未检测到登录，请扫码登录后手动点击"已登录，继续"');
               notifyError('2分钟内未检测到登录，请手动点击"已登录，继续"');
               setIsProcessing(false);
@@ -194,7 +236,10 @@ export function useQqConfig() {
             console.error(`[openConsole] 第 ${attempts} 次检查出错:`, error);
             // 出错继续轮询，直到达到最大次数
             if (attempts >= maxAttempts) {
-              clearInterval(checkInterval);
+              if (checkIntervalRef.current) {
+                clearInterval(checkIntervalRef.current);
+                checkIntervalRef.current = null;
+              }
               addLog('⏰ 检查超时，请扫码登录后手动点击"已登录，继续"');
               notifyError('检查超时，请手动点击"已登录，继续"');
               setIsProcessing(false);
@@ -229,10 +274,18 @@ export function useQqConfig() {
 
       if (isLoggedIn) {
         updateProgress(0, { status: 'success', message: '已登录' });
-        addLog('检测到已登录，自动创建机器人...');
-        notifySuccess('检测到已登录，自动创建机器人');
-        setCurrentStep(3);
-        await createRobot();
+        addLog('检测到已登录');
+        notifySuccess('检测到已登录');
+        
+        // 根据配置模式决定下一步
+        if (configMode === 'create') {
+          setCurrentStep(3);
+          await createRobot();
+        } else {
+          // 读取配置模式，跳过创建机器人，直接获取凭证
+          setCurrentStep(3);
+          await getCredentials();
+        }
       } else {
         updateProgress(0, { status: 'error', message: '未登录' });
         addLog('未检测到登录，请先扫码登录');
@@ -286,6 +339,13 @@ export function useQqConfig() {
       
       const result = await window.electronAPI.qqGetCredentials();
       
+      // 显示调试日志
+      if (result.logs && Array.isArray(result.logs)) {
+        addLog('=== 调试日志 ===');
+        result.logs.forEach((log: string) => addLog(log));
+        addLog('=== 调试日志结束 ===');
+      }
+
       if (result.success && result.data) {
         const { appId, appSecret } = result.data;
         setQqConfig({
@@ -295,13 +355,41 @@ export function useQqConfig() {
         updateProgress([0, 1], { status: 'success' });
         addLog(`获取凭证成功: AppID=${appId}`);
         notifySuccess('获取凭证成功');
-        setCurrentStep(5);
         
-        // 等待3秒后自动继续执行第6步：绑定机器人
+        // 根据配置模式设置下一步
+        if (configMode === 'create') {
+          setCurrentStep(5);
+        } else {
+          setCurrentStep(4);
+        }
+        
+        // 等待3秒后自动继续执行绑定机器人
         addLog('等待3秒后自动继续：绑定机器人...');
         await wait(3000);
         // 直接传入获取到的凭证，避免状态异步问题
         await bindChannelWithCredentials(appId, appSecret);
+      } else if (result.needManualInput) {
+        // 需要手动输入AppSecret
+        updateProgress(0, { status: 'error', message: '需要手动输入AppSecret' });
+        addLog('AppSecret需要手动获取，请在浏览器中查看并手动输入');
+        addLog('获取AppID成功，请在下方输入AppSecret');
+        notifyError('AppSecret需要手动获取');
+        
+        // 设置AppID，等待用户手动输入AppSecret
+        if (result.data?.appId) {
+          setQqConfig({
+            appId: result.data.appId,
+            appSecret: ''
+          });
+          addLog(`AppID: ${result.data.appId}`);
+        }
+        
+        // 跳转到手动输入步骤
+        if (configMode === 'create') {
+          setCurrentStep(5);
+        } else {
+          setCurrentStep(4);
+        }
       } else {
         throw new Error(result.error || '获取失败');
       }
@@ -320,15 +408,37 @@ export function useQqConfig() {
     try {
       updateProgress(0, { status: 'running' });
       
+      // 检查是否已存在相同 appId 的 qqbot 配置
+      addLog(`检查是否已存在相同appId(${appId})的qqbot配置...`);
+      const checkResult = await window.electronAPI.checkQqChannelExists(appId);
+      
+      if (checkResult.exists) {
+        addLog(`发现相同appId的qqbot配置，准备删除...`);
+        const deleteResult = await window.electronAPI.deleteQqChannel();
+        if (deleteResult.success) {
+          addLog('已删除现有qqbot配置');
+        } else {
+          addLog(`删除配置失败: ${deleteResult.error}`);
+        }
+      } else {
+        addLog('未找到相同appId的qqbot配置');
+      }
+      
       const result = await window.electronAPI.configQqChannel(appId, appSecret);
       
       if (result.success) {
         updateProgress(0, { status: 'success' });
         addLog('QQ机器人绑定成功');
         notifySuccess('QQ机器人绑定成功');
-        setCurrentStep(6);
         
-        // 等待3秒后自动继续执行第7步：重启服务
+        // 根据配置模式设置下一步
+        if (configMode === 'create') {
+          setCurrentStep(6);
+        } else {
+          setCurrentStep(5);
+        }
+        
+        // 等待3秒后自动继续执行重启服务
         addLog('等待3秒后自动继续：重启服务...');
         await wait(3000);
         await restartService();
@@ -353,6 +463,19 @@ export function useQqConfig() {
   };
 
   const restartService = async () => {
+    if (isRestartingRef.current) {
+      addLog('⚠️ 服务正在重启中，请勿重复操作');
+      return;
+    }
+    
+    if (hasRunRestartRef.current) {
+      addLog('⚠️ 服务已经重启过，跳过重复重启');
+      return;
+    }
+    
+    isRestartingRef.current = true;
+    hasRunRestartRef.current = true;
+    
     startAction('restart-service', '正在重启OpenClaw服务...');
     
     try {
@@ -364,7 +487,13 @@ export function useQqConfig() {
         updateProgress(0, { status: 'success' });
         addLog('OpenClaw服务重启成功');
         notifySuccess('OpenClaw服务重启成功');
-        setCurrentStep(7);
+        
+        // 根据配置模式设置完成步骤
+        if (configMode === 'create') {
+          setCurrentStep(7);
+        } else {
+          setCurrentStep(6);
+        }
       } else {
         throw new Error(result.error || '重启失败');
       }
@@ -374,6 +503,7 @@ export function useQqConfig() {
       notifyError(`重启失败: ${errorMsg}`);
     } finally {
       setIsProcessing(false);
+      isRestartingRef.current = false;
     }
   };
 
@@ -434,6 +564,8 @@ export function useQqConfig() {
         } else {
           addLog(`❌ 安装失败: ${installResult.error}`);
           notifyError(`安装失败: ${installResult.error}`);
+          addLog('请手动点击"安装插件"按钮重试，或修复配置后重试');
+          setCurrentStep(1); // 跳转到安装插件步骤，让用户手动处理
           return false;
         }
       }
@@ -448,7 +580,21 @@ export function useQqConfig() {
     }
   };
 
+  // 一键创建机器人（完整流程）
   const runAllSteps = async () => {
+    // 重置重启状态，允许重新执行
+    hasRunRestartRef.current = false;
+    const pluginReady = await ensurePluginInstalled();
+    if (!pluginReady) {
+      return;
+    }
+    await openConsole();
+  };
+
+  // 一键读取配置（跳过创建机器人）
+  const runReadConfigSteps = async () => {
+    // 重置重启状态，允许重新执行
+    hasRunRestartRef.current = false;
     const pluginReady = await ensurePluginInstalled();
     if (!pluginReady) {
       return;
@@ -467,7 +613,10 @@ export function useQqConfig() {
     setQqConfig,
     handleQqAction,
     runAllSteps,
+    runReadConfigSteps,
     openclawInstalled,
     isCheckingOpenclaw,
+    configMode,
+    setConfigMode,
   };
 }

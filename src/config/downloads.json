@@ -6,30 +6,31 @@
     "nodejs": {
       "name": "Node.js",
       "description": "JavaScript运行时环境",
-      "version": "22.14.0",
+      "version": "22.22.1",
       "autoDownload": {
-        "url": "https://cdn.npmmirror.com/binaries/node/v22.14.0/node-v22.14.0-x64.msi",
+        "url": "https://cdn.npmmirror.com/binaries/node/v22.22.1/node-v22.22.1-x64.msi",
         "mirror": "淘宝npm镜像",
-        "filename": "node-v22.14.0-x64.msi"
+        "filename": "node-v22.22.1-x64.msi"
       },
       "manualDownload": {
-        "url": "https://cdn.npmmirror.com/binaries/node/v22.14.0/node-v22.14.0-x64.msi",
+        "url": "https://cdn.npmmirror.com/binaries/node/v22.22.1/node-v22.22.1-x64.msi",
         "description": "手动下载Node.js安装包"
       },
-      "minVersion": "22.0.0"
+      "minVersion": "22.16.0"
     },
     "git": {
       "name": "Git",
       "description": "分布式版本控制系统",
-      "version": "2.53.0",
+      "version": "latest",
       "autoDownload": {
-        "url": "https://mirror.nju.edu.cn/github-release/git-for-windows/git/Git%20for%20Windows%20v2.53.0.windows.1/Git-2.53.0-64-bit.exe",
-        "mirror": "南京大学镜像",
-        "filename": "Git-2.53.0-64-bit.exe"
+        "url": null,
+        "mirror": "南京大学镜像（动态获取）",
+        "filename": null,
+        "note": "从南京大学镜像站动态获取最新版本"
       },
       "manualDownload": {
-        "url": "https://git-scm.com/download/win",
-        "description": "访问Git官网下载页面"
+        "url": "https://mirror.nju.edu.cn/github-release/git-for-windows/git/",
+        "description": "从南京大学镜像站下载"
       },
       "minVersion": "2.40.0"
     },
