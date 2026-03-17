@@ -97,7 +97,6 @@ export function QqConfig() {
     installLogs,
     rpaProgress,
     qqConfig,
-    setQqConfig,
     handleQqAction,
     runAllSteps,
     runReadConfigSteps,

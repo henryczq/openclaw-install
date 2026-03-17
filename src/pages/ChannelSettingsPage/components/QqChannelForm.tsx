@@ -1,7 +1,5 @@
 import { useEffect } from 'react';
-import { Form, Input, Switch, Select, Space, Typography, Alert } from 'antd';
-
-const { Text, Paragraph } = Typography;
+import { Form, Input, Switch, Select, Alert } from 'antd';
 const { Option } = Select;
 
 interface QqChannelFormProps {

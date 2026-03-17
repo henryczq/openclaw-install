@@ -259,7 +259,7 @@ export interface ElectronAPI {
   openQqConsole: () => Promise<{ success: boolean; error?: string }>;
   qqCheckLogin: () => Promise<{ loggedIn: boolean; hasCreateBtn?: boolean; error?: string }>;
   qqCreateRobot: () => Promise<{ success: boolean; error?: string }>;
-  qqGetCredentials: () => Promise<{ success: boolean; data?: { appId: string; appSecret: string }; error?: string }>;
+  qqGetCredentials: () => Promise<{ success: boolean; data?: { appId: string; appSecret: string }; needManualInput?: boolean; logs?: string[]; error?: string }>;
   configQqChannel: (appId: string, appSecret: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   checkQqChannelExists: (appId: string) => Promise<{ exists: boolean; existingAppId?: string; error?: string }>;
   deleteQqChannel: () => Promise<{ success: boolean; message?: string; error?: string }>;
@@ -300,7 +300,7 @@ export interface ElectronAPI {
   updateModel: (params: { providerId: string; modelId: string; modelName?: string; baseUrl?: string; apiKey?: string; contextWindow?: number; maxTokens?: number; reasoning?: boolean }) => Promise<{ success: boolean; message?: string; fullName?: string; error?: string }>;
   
   // 渠道管理
-  listChannels: () => Promise<{ success: boolean; channels?: Array<{ channelId: string; name: string; enabled: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string; accounts?: Record<string, any>; raw?: any }>; error?: string }>;
+  listChannels: () => Promise<{ success: boolean; channels?: Array<{ channelId: string; name: string; enabled: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string; accounts?: Record<string, any>; raw?: any }>; message?: string; error?: string }>;
   getChannel: (channelId: string) => Promise<{ success: boolean; channel?: { channelId: string; name: string; enabled: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string; accounts?: Record<string, any>; raw?: any }; error?: string }>;
   saveChannel: (params: { channelId: string; enabled?: boolean; appId?: string; appSecret?: string; token?: string; dmPolicy?: string; groupPolicy?: string }) => Promise<{ success: boolean; message?: string; channelId?: string; error?: string }>;
   deleteChannel: (channelId: string) => Promise<{ success: boolean; message?: string; bindingsRemoved?: number; error?: string }>;

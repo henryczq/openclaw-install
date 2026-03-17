@@ -1,0 +1,3 @@
+npx -y @wecom/wecom-openclaw-cli install
+npx -y @wecom/wecom-openclaw-cli doctor
+npx -y @wecom/wecom-openclaw-cli doctor 正在运行诊断检查... [失败] 插件目录不存在: C:\Users\Administrator\AppData\Roaming\.openclaw\extensions\wecom-openclaw-plugin
