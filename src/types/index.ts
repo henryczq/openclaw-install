@@ -3,7 +3,7 @@
 // ============================================
 
 /** 导航键 */
-export type NavKey = 'install' | 'ai-config' | 'channel-config' | 'uninstall' | 'diagnose' | 'settings' | 'channel-settings' | 'guide' | 'about';
+export type NavKey = 'install' | 'ai-config' | 'channel-config' | 'uninstall' | 'diagnose' | 'settings' | 'channel-settings' | 'plugin-manager' | 'guide' | 'about';
 
 /** 安装步骤状态 */
 export type InstallStepStatus = 'pending' | 'running' | 'success' | 'error';
@@ -229,7 +229,7 @@ export interface ElectronAPI {
   configOpenClawAI: (config: AIProviderConfig | string, apiKey?: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   initOpenClawConfig: () => Promise<{ success: boolean; configPath?: string; error?: string }>;
   getVolcengineApiKey: () => Promise<{ success: boolean; apiKey?: string; error?: string; message?: string }>;
-  fetchVolcengineApiKey: () => Promise<{ success: boolean; apiKey?: string; noKeys?: boolean; error?: string; message?: string }>;
+  fetchVolcengineApiKey: () => Promise<{ success: boolean; apiKey?: string; noKeys?: boolean; needLogin?: boolean; error?: string; message?: string }>;
   getKimiApiKey: () => Promise<{ success: boolean; apiKey?: string; error?: string; message?: string }>;
   getConfigPath: () => Promise<{ path?: string }>;
   setConfigPath: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>;

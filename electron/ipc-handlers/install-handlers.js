@@ -280,17 +280,27 @@ export function registerInstallHandlers(ipcMain) {
       
       // 使用spawn打开独立PowerShell窗口，并等待其关闭
       return new Promise((resolve) => {
-        // 直接启动 PowerShell，不使用 start 命令，这样可以等待进程结束
-        const child = spawn('powershell.exe', [
-          '-ExecutionPolicy', 'Bypass',
-          '-File', scriptPath
+        console.log('准备启动PowerShell，脚本路径:', scriptPath);
+        
+        // 使用 cmd /c start 启动 PowerShell 窗口，确保窗口可见
+        const child = spawn('cmd.exe', [
+          '/c', 'start', 'PowerShell', '-ExecutionPolicy', 'Bypass', '-File', scriptPath
         ], {
           detached: false,
           windowsHide: false,
           shell: false
         });
         
-        console.log('PowerShell安装窗口已打开，等待用户完成安装...');
+        console.log('PowerShell安装窗口已启动，PID:', child.pid);
+        
+        // 添加stdout和stderr监听以便调试
+        child.stdout?.on('data', (data) => {
+          console.log('PowerShell stdout:', data.toString());
+        });
+        
+        child.stderr?.on('data', (data) => {
+          console.error('PowerShell stderr:', data.toString());
+        });
         
         child.on('close', (code) => {
           console.log('PowerShell窗口已关闭，退出码:', code);
@@ -320,6 +330,11 @@ export function registerInstallHandlers(ipcMain) {
             reasonType: 'unknown'
           });
         });
+        
+        // 如果5秒内没有错误，认为窗口启动成功
+        setTimeout(() => {
+          console.log('PowerShell窗口应该已经打开');
+        }, 5000);
       });
     } catch (error) {
       console.error('OpenClaw 安装失败:', error);

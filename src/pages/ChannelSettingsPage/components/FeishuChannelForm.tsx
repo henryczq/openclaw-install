@@ -210,27 +210,23 @@ export function FeishuChannelForm({ form, initialValues, isEdit }: FeishuChannel
             </Select>
           </Form.Item>
         </Col>
-        <Col span={12}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="requireMention"
-                label="需要@提及"
-                valuePropName="checked"
-              >
-                <Switch checkedChildren="是" unCheckedChildren="否" style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="streaming"
-                label="流式响应"
-                valuePropName="checked"
-              >
-                <Switch checkedChildren="启用" unCheckedChildren="禁用" style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
+        <Col span={6}>
+          <Form.Item
+            name="requireMention"
+            label="需要@提及"
+            valuePropName="checked"
+          >
+            <Switch checkedChildren="是" unCheckedChildren="否" style={{ width: '100%' }} />
+          </Form.Item>
+        </Col>
+        <Col span={6}>
+          <Form.Item
+            name="streaming"
+            label="流式响应"
+            valuePropName="checked"
+          >
+            <Switch checkedChildren="启用" unCheckedChildren="禁用" style={{ width: '100%' }} />
+          </Form.Item>
         </Col>
       </Row>
     </Form>

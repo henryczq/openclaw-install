@@ -166,4 +166,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeBinding: (agentId, channelId, accountId) => ipcRenderer.invoke('remove-binding', agentId, channelId, accountId),
   getFeishuPolicyOptions: () => ipcRenderer.invoke('get-feishu-policy-options'),
   getPolicyOptionDetail: (policyType, value) => ipcRenderer.invoke('get-policy-option-detail', policyType, value),
+  
+  // 插件管理
+  listPlugins: () => ipcRenderer.invoke('list-plugins'),
+  deletePlugin: (pluginPath) => ipcRenderer.invoke('delete-plugin', pluginPath),
+  openPluginFolder: () => ipcRenderer.invoke('open-plugin-folder'),
 });

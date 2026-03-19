@@ -8,6 +8,7 @@ import UninstallPage from './pages/UninstallPage';
 import DiagnosePage from './pages/DiagnosePage';
 import SettingsPage from './pages/SettingsPage';
 import ChannelSettingsPage from './pages/ChannelSettingsPage';
+import PluginManagerPage from './pages/PluginManagerPage';
 import GuidePage from './pages/GuidePage';
 import AboutPage from './pages/AboutPage';
 import { useAppStore } from './store';
@@ -31,6 +32,8 @@ function App() {
         return <SettingsPage />;
       case 'channel-settings':
         return <ChannelSettingsPage />;
+      case 'plugin-manager':
+        return <PluginManagerPage />;
       case 'guide':
         return <GuidePage />;
       case 'about':

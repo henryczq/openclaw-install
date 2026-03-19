@@ -1,5 +1,5 @@
-import { Card, Button, Space, Row, Col, Alert, Spin, Typography } from 'antd';
-import { ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Button, Space, Row, Col, Alert, Spin, Typography, Divider } from 'antd';
+import { ThunderboltOutlined, CheckCircleOutlined, CodeOutlined } from '@ant-design/icons';
 import { useFeishuConfig } from '../hooks/useFeishuConfig';
 
 const { Text, Paragraph } = Typography;
@@ -12,6 +12,7 @@ export function FeishuConfig() {
     openclawInstalled,
     installComplete,
     installFeishuPlugin,
+    openManualConfigConsole,
   } = useFeishuConfig();
 
   if (isChecking) {
@@ -79,6 +80,24 @@ export function FeishuConfig() {
                 icon={<CheckCircleOutlined />}
               />
             )}
+
+            <Divider />
+
+            <Alert
+              message="手动配置"
+              description="如果自动配置失败，可以使用命令行手动配置飞书渠道。"
+              type="warning"
+              showIcon
+              style={{ marginBottom: 8 }}
+            />
+            <Button
+              icon={<CodeOutlined />}
+              onClick={openManualConfigConsole}
+              size="large"
+              style={{ width: '100%' }}
+            >
+              控制台手动配置
+            </Button>
 
             {installLogs.length > 0 && (
               <div

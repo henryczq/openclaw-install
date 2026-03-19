@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Table, Space, Tag, Modal, Form, Input, Switch, Popconfirm, message, Alert, Typography, Select, Dropdown } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, ApiOutlined, DownOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, ApiOutlined, DownOutlined, CodeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { FeishuChannelForm } from './components/FeishuChannelForm';
 import { QqChannelForm } from './components/QqChannelForm';
@@ -418,6 +418,38 @@ export default function ChannelSettingsPage() {
         onCancel={() => setModalVisible(false)}
         confirmLoading={loading}
         width={600}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              {channelType === 'feishu' && (
+                <Button
+                  icon={<CodeOutlined />}
+                  onClick={async () => {
+                    try {
+                      const result = await window.electronAPI.executeCommand(
+                        'start cmd /k openclaw channels add',
+                        { showWindow: true }
+                      );
+                      if (result.success) {
+                        message.success('已打开控制台窗口');
+                      } else {
+                        message.error(result.error || '打开控制台失败');
+                      }
+                    } catch (error) {
+                      message.error('打开控制台失败');
+                    }
+                  }}
+                >
+                  控制台手动配置
+                </Button>
+              )}
+            </div>
+            <Space>
+              <CancelBtn />
+              <OkBtn />
+            </Space>
+          </div>
+        )}
       >
         <div style={{ marginTop: 16 }}>
           {renderForm()}

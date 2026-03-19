@@ -58,14 +58,38 @@ const GET_EXISTING_KEY_SCRIPT = `
       }
     };
 
-    await sleep(1500);
+    await sleep(2000);
 
-    const existingKeys = document.querySelectorAll('.eye-icon-wrapper-mOiIUI .force-icon-eye, svg.force-icon-eye');
-    if (existingKeys.length === 0) {
+    // 检查是否未登录（通过检查登录按钮或登录页面特征）
+    const loginButton = byTextButton('登录') || byTextButton('立即登录') || document.querySelector('.login-btn, .login-button, [data-testid="login-btn"]');
+    const currentUrl = window.location.href;
+    const isLoginPage = currentUrl.includes('/login') || currentUrl.includes('/auth') || document.querySelector('.login-form, .login-container');
+    
+    if (loginButton || isLoginPage) {
       return {
         success: false,
-        noKeys: true,
-        message: '没有找到已有的API Key'
+        needLogin: true,
+        message: '请先登录火山引擎账号'
+      };
+    }
+
+    // 检查是否有"创建 API Key"按钮（说明已登录但可能没有Key）
+    const createButton = byTextButton('创建 API Key');
+    
+    const existingKeys = document.querySelectorAll('.eye-icon-wrapper-mOiIUI .force-icon-eye, svg.force-icon-eye');
+    if (existingKeys.length === 0) {
+      // 如果已登录但没有Key
+      if (createButton) {
+        return {
+          success: false,
+          noKeys: true,
+          message: '没有找到已有的API Key，请使用"去火山引擎创建"创建新的KEY'
+        };
+      }
+      // 可能是页面还在加载中
+      return {
+        success: false,
+        message: '页面加载中，请稍后重试'
       };
     }
 
@@ -210,6 +234,15 @@ export function registerVolcengineApiKeyHandler(ipcMain) {
       windowInstance.show();
 
       const result = await automation.inject(GET_EXISTING_KEY_SCRIPT);
+
+      // 如果需要登录，保持窗口打开
+      if (result?.needLogin) {
+        return {
+          success: false,
+          needLogin: true,
+          message: '请先登录火山引擎账号，登录后请再次点击"去火山引擎获取"'
+        };
+      }
 
       if (result?.noKeys) {
         automation.closeWindow();

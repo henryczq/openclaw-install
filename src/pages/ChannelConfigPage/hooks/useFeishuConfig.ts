@@ -81,6 +81,27 @@ export function useFeishuConfig() {
     }
   };
 
+  const openManualConfigConsole = async () => {
+    addLog('打开控制台手动配置...');
+    try {
+      // 打开 cmd 窗口，执行 openclaw channels add，让用户自己操作
+      const result = await window.electronAPI.executeCommand(
+        'start cmd /k openclaw channels add',
+        { showWindow: true }
+      );
+      
+      if (result.success) {
+        addLog('已打开控制台窗口');
+      } else {
+        throw new Error(result.error || '打开控制台失败');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      addLog(`打开控制台失败: ${errorMsg}`);
+      notifyError(`打开控制台失败: ${errorMsg}`);
+    }
+  };
+
   return {
     isProcessing,
     installLogs,
@@ -88,5 +109,6 @@ export function useFeishuConfig() {
     openclawInstalled,
     installComplete,
     installFeishuPlugin,
+    openManualConfigConsole,
   };
 }

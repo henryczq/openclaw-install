@@ -217,12 +217,27 @@ export function registerSystemHandlers(ipcMain) {
     }
   });
 
-  // 配置Git代理
+  // 配置Git代理 - 使用 ghproxy 镜像加速 GitHub 访问
   ipcMain.handle('config-git-proxy', async () => {
     try {
-      await execAsync('git config --global --replace-all url."https://github.com/".insteadOf ssh://git@github.com/');
-      return { success: true };
+      console.log('[config-git-proxy] 开始配置 Git 镜像...');
+      
+      // 配置三个 Git 镜像规则，将 GitHub 地址映射到 ghproxy 镜像
+      const configs = [
+        { insteadOf: 'https://github.com/', url: 'https://mirror.ghproxy.com/https://github.com/' },
+        { insteadOf: 'ssh://git@github.com/', url: 'https://mirror.ghproxy.com/https://github.com/' },
+        { insteadOf: 'git@github.com:', url: 'https://mirror.ghproxy.com/https://github.com/' }
+      ];
+      
+      for (const cfg of configs) {
+        console.log(`[config-git-proxy] 设置: ${cfg.insteadOf} -> ${cfg.url}`);
+        await execAsync(`git config --global url."${cfg.url}".insteadOf "${cfg.insteadOf}"`);
+      }
+      
+      console.log('[config-git-proxy] Git 镜像配置完成');
+      return { success: true, message: 'Git 镜像已配置为 ghproxy' };
     } catch (error) {
+      console.error('[config-git-proxy] 配置失败:', error);
       return { success: false, error: error.message };
     }
   });
@@ -318,6 +333,106 @@ export function registerSystemHandlers(ipcMain) {
     } catch (error) {
       console.error('[check-vcredist] Error:', error);
       return { installed: false, error: error.message };
+    }
+  });
+
+  // 列出插件目录中的所有插件
+  ipcMain.handle('list-plugins', async () => {
+    try {
+      const extensionsPath = path.join(os.homedir(), '.openclaw', 'extensions');
+      
+      if (!fs.existsSync(extensionsPath)) {
+        return { success: true, plugins: [] };
+      }
+
+      const items = fs.readdirSync(extensionsPath, { withFileTypes: true });
+      const plugins = [];
+
+      for (const item of items) {
+        const fullPath = path.join(extensionsPath, item.name);
+        
+        // 检查是否是目录或文件
+        if (item.isDirectory()) {
+          // 尝试读取 package.json 获取更多信息
+          let version = '';
+          let description = '';
+          const packageJsonPath = path.join(fullPath, 'package.json');
+          
+          if (fs.existsSync(packageJsonPath)) {
+            try {
+              const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+              version = packageJson.version || '';
+              description = packageJson.description || '';
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+
+          plugins.push({
+            name: item.name,
+            path: fullPath,
+            version,
+            description,
+          });
+        } else if (item.isFile() && item.name.endsWith('.js')) {
+          // 如果是 .js 文件
+          plugins.push({
+            name: item.name.replace('.js', ''),
+            path: fullPath,
+            version: '',
+            description: 'JavaScript 插件文件',
+          });
+        }
+      }
+
+      return { success: true, plugins };
+    } catch (error) {
+      console.error('[list-plugins] Error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 删除插件
+  ipcMain.handle('delete-plugin', async (event, pluginPath) => {
+    try {
+      if (!fs.existsSync(pluginPath)) {
+        return { success: false, error: '插件不存在' };
+      }
+
+      const stat = fs.statSync(pluginPath);
+      
+      if (stat.isDirectory()) {
+        // 递归删除目录
+        fs.rmSync(pluginPath, { recursive: true, force: true });
+      } else {
+        // 删除文件
+        fs.unlinkSync(pluginPath);
+      }
+
+      console.log('[delete-plugin] 已删除:', pluginPath);
+      return { success: true };
+    } catch (error) {
+      console.error('[delete-plugin] Error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 打开插件目录
+  ipcMain.handle('open-plugin-folder', async () => {
+    try {
+      const extensionsPath = path.join(os.homedir(), '.openclaw', 'extensions');
+      
+      // 确保目录存在
+      if (!fs.existsSync(extensionsPath)) {
+        fs.mkdirSync(extensionsPath, { recursive: true });
+      }
+
+      // 使用 explorer 打开目录
+      await execAsync(`explorer "${extensionsPath}"`);
+      return { success: true };
+    } catch (error) {
+      console.error('[open-plugin-folder] Error:', error);
+      return { success: false, error: error.message };
     }
   });
 }

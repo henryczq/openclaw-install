@@ -8,6 +8,7 @@ import {
   ApiOutlined,
   BookOutlined,
   InfoCircleOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../store';
 import type { NavKey } from '../types';
@@ -27,6 +28,7 @@ const menuItems = [
   // { key: 'diagnose', icon: <MedicineBoxOutlined />, label: '一键诊断' }, // 暂时隐藏
   { key: 'settings', icon: <SettingOutlined />, label: '设置' },
   { key: 'channel-settings', icon: <ApiOutlined />, label: '渠道设置' },
+  { key: 'plugin-manager', icon: <AppstoreOutlined />, label: '插件管理' },
   { key: 'guide', icon: <BookOutlined />, label: '使用说明' },
   { key: 'about', icon: <InfoCircleOutlined />, label: '关于' },
 ];

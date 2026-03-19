@@ -344,6 +344,10 @@ export default function AIConfigPage() {
           message.success('已自动获取并填充 API Key');
           return;
         }
+        if (result.needLogin) {
+          message.warning('检测到未登录，请在弹出的窗口中登录火山引擎账号，登录后请再次点击“去火山引擎获取”');
+          return;
+        }
         if (result.noKeys) {
           message.warning('没有找到已有的 API Key，请使用“去火山引擎创建”创建新的 Key');
           return;
